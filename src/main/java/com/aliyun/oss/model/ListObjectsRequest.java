@@ -26,6 +26,7 @@ import com.aliyun.oss.internal.OSSUtils;
  */
 public class ListObjectsRequest extends GenericRequest {
 
+    public static final int MAX_TRIES = 4; // 4000 at most
     private static final int MAX_RETURNED_KEYS_LIMIT = 1000;
 
     // The prefix filter----objects returned whose key must start with this
@@ -51,7 +52,10 @@ public class ListObjectsRequest extends GenericRequest {
      */
     private String encodingType;
 
+    private int tries; // _qiniu
+
     public ListObjectsRequest() {
+        tries = 0;
     }
 
     public ListObjectsRequest(String bucketName) {
@@ -82,6 +86,15 @@ public class ListObjectsRequest extends GenericRequest {
         if (maxKeys != null) {
             setMaxKeys(maxKeys);
         }
+        tries = 0;
+    }
+
+    public int incTries() {
+        return ++tries;
+    }
+
+    public int getTries() {
+        return tries;
     }
 
     /**

@@ -76,11 +76,18 @@ import static com.aliyun.oss.internal.ResponseParsers.listImageStyleResponsePars
 import static com.aliyun.oss.internal.ResponseParsers.getBucketImageProcessConfResponseParser;
 
 import java.io.ByteArrayInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import org.apache.commons.logging.Log;
 
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
@@ -136,7 +143,18 @@ import com.aliyun.oss.model.SetBucketWebsiteRequest;
 import com.aliyun.oss.model.TagSet;
 import com.aliyun.oss.model.Style;
 import com.aliyun.oss.model.UserQos;
-import org.apache.http.HttpStatus;
+
+import org.apache.http.*;
+
+import com.aliyun.oss.common.utils.LogUtils;
+import com.qiniu.storage.BucketManager;
+import com.qiniu.storage.model.FileInfo;
+import com.qiniu.storage.model.FileListing;
+import com.qiniu.util.Auth;
+import com.qiniu.storage.Configuration;
+import com.aliyun.oss.model.OSSObjectSummary;
+
+import java.util.Date;
 
 /**
  * Bucket operation.
@@ -394,6 +412,76 @@ public class OSSBucketOperation extends OSSOperation {
      * List objects under the specified bucket.
      */
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
+
+        return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
+                ?  listObjects_oss(listObjectsRequest) : listObjects_qiniu(listObjectsRequest);
+    }
+
+    public ObjectListing listObjects_qiniu(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
+
+        assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
+        String bucketName = listObjectsRequest.getBucketName();
+        assertParameterNotNull(bucketName, "bucketName");
+        ensureBucketNameValid(bucketName);
+
+        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), 
+                                credsProvider.getCredentials().getSecretAccessKey());
+        BucketManager mgr = new BucketManager(auth, new Configuration());
+
+        LogUtils.getLog().debug("==== listObject headers:" + listObjectsRequest.getHeaders() 
+                + " params:" + listObjectsRequest.getParameters() + " encode:" + listObjectsRequest.getEncodingType()
+                + " bucket:" + listObjectsRequest.getBucketName() + " key:" + listObjectsRequest.getKey()
+                + " prefix:" + listObjectsRequest.getPrefix() + " marker:" + listObjectsRequest.getMarker()
+                + " maxkeys:" + listObjectsRequest.getMaxKeys() + " delimiter:" + listObjectsRequest.getDelimiter());
+
+        String bucket = Objects.toString(listObjectsRequest.getBucketName(), "");
+        String marker = Objects.toString(listObjectsRequest.getMarker(), "");
+        String prefix = Objects.toString(listObjectsRequest.getPrefix(), "");
+        String delimiter = Objects.toString(listObjectsRequest.getDelimiter(), "");
+        int limit = listObjectsRequest.getMaxKeys();
+
+        try {
+            ObjectListing result = new ObjectListing();
+            FileListing ls = mgr.listFiles(bucket, prefix, marker, limit, delimiter);
+
+            if (ls != null) {
+                for (FileInfo info: ls.items) {
+                    OSSObjectSummary sm = new OSSObjectSummary();
+                    sm.setKey(Objects.toString(info.key, ""));
+                    sm.setSize(info.fsize);
+                    sm.setETag(Objects.toString(info.hash, ""));
+                    sm.setLastModified(new Date(info.putTime));
+                    result.addObjectSummary(sm);
+                }
+                if (ls.commonPrefixes != null) {
+                    for (String s: ls.commonPrefixes) {
+                        result.addCommonPrefix(s);
+                    }
+                }
+                marker = (ls.marker == null) ? "" : ls.marker;
+                //TODO set the listObjectsRequest here may not be a good idea
+                listObjectsRequest.setMarker(marker);
+                listObjectsRequest.incTries();
+            }
+
+            result.setBucketName(bucket);
+            result.setEncodingType(Objects.toString(listObjectsRequest.getEncodingType(), ""));
+            result.setMarker(marker);
+            result.setNextMarker(marker);
+            result.setTruncated(!marker.equals(""));
+
+            if (listObjectsRequest.getTries() == listObjectsRequest.MAX_TRIES) {
+                result.setTruncated(false); // stop here
+            }
+
+            return result;
+        } catch (Exception e) {
+            //throw new OSSException(e.toString());
+            return new ObjectListing();
+        }
+    }
+
+    public ObjectListing listObjects_oss(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
 
@@ -1145,6 +1233,22 @@ public class OSSBucketOperation extends OSSOperation {
 
         if (listObjectsRequest.getEncodingType() != null) {
             params.put(ENCODING_TYPE, listObjectsRequest.getEncodingType());
+        }
+
+        if (listObjectsRequest.getPrefix() != null) {
+            params.put("prefix", listObjectsRequest.getPrefix());
+        }
+
+        if (listObjectsRequest.getMarker() != null) {
+            params.put("marker", listObjectsRequest.getMarker());
+        }
+
+        if (listObjectsRequest.getDelimiter() != null) {
+            params.put("delimiter", listObjectsRequest.getDelimiter());
+        }
+
+        if (listObjectsRequest.getMaxKeys() != null) {
+            params.put("limit", Integer.toString(listObjectsRequest.getMaxKeys()));
         }
     }
 
