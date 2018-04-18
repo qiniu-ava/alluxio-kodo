@@ -481,8 +481,7 @@ public class OSSBucketOperation extends OSSOperation {
             result.setNextMarker(marker);
             result.setTruncated(!marker.equals(""));
 
-            //if (listObjectsRequest.getTries() == listObjectsRequest.MAX_TRIES) {
-            if (listObjectsRequest.getTries() >= 1) {
+            if (listObjectsRequest.getTries() == listObjectsRequest.MAX_TRIES) {
                 result.setTruncated(false); // stop here
             }
 
