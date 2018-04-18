@@ -178,7 +178,7 @@ public class OSSObjectOperation extends OSSOperation {
             LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " rsp:" + rsp);
             result.setRequestId(rsp.reqId);
         } catch (Exception e) {
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.toString());
+            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.getMessage());
             throw new OSSException(e.toString());
         }
 
@@ -274,7 +274,7 @@ public class OSSObjectOperation extends OSSOperation {
 
     public OSSObject getObject_qiniu(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
 
-        getLog().warn("==== getObject: " + getObjectRequest.getBucketName() + ":" + getObjectRequest.getKey());
+        getLog().debug("==== getObject: " + getObjectRequest.getBucketName() + ":" + getObjectRequest.getKey());
         OSSObject ossObject = new OSSObject();
         try {
             Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
@@ -287,7 +287,7 @@ public class OSSObjectOperation extends OSSOperation {
             ossObject.setKey(Objects.toString(getObjectRequest.getKey(), ""));
             ossObject.setObjectContent(response.getEntity().getContent());
         } catch (IOException e){
-            getLog().warn("==== getObject exception:" + e.getMessage());
+            getLog().debug("==== getObject exception:" + e.getMessage());
             throw new OSSException(e.toString());
         }
 
@@ -428,8 +428,7 @@ public class OSSObjectOperation extends OSSOperation {
     static long cc = 0;
     public ObjectMetadata getObjectMetadata_qiniu(GenericRequest genericRequest) throws OSSException, ClientException {
 
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
         assertParameterNotNull(genericRequest, "genericRequest");
         String bucketName = genericRequest.getBucketName();
         String key = genericRequest.getKey();
@@ -439,7 +438,7 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         ensureObjectKeyValid(key);
 
-        if (++cc % 100 == 0) LogUtils.getLog().debug(" ==== getObjectMetadata per 100 " + bucketName + ":" + key);
+        if (++cc % 100 == 0) LogUtils.getLog().info(" ==== getObjectMetadata per 100 " + bucketName + ":" + key);
         try {
             FileInfo info = mgr.stat(bucketName, key);
             ObjectMetadata md = new ObjectMetadata();
@@ -503,18 +502,17 @@ public class OSSObjectOperation extends OSSOperation {
 
         assertParameterNotNull(copyObjectRequest, "copyObjectRequest");
 
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
 
         try {
-            getLog().warn("==== copyObject: " + copyObjectRequest);
+            getLog().debug("==== copyObject: " + copyObjectRequest);
             Response rsp = mgr.copy(copyObjectRequest.getSourceBucketName(), copyObjectRequest.getSourceKey(),
                      copyObjectRequest.getDestinationBucketName(), copyObjectRequest.getDestinationKey(), true);
             CopyObjectResult result = new CopyObjectResult();
             result.setRequestId(rsp.reqId);
             return result;
         } catch (Exception e) {
-            getLog().warn("==== copyObject exception: " + e.toString());
+            getLog().debug("==== copyObject exception: " + e.toString());
             throw new OSSException(e.toString());
         }
     }
@@ -556,13 +554,12 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         assertParameterNotNull(key, "key");
         ensureObjectKeyValid(key);
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
         try {
-            getLog().warn("==== deleteObject " + bucketName + ":" + key);
+            getLog().debug("==== deleteObject " + bucketName + ":" + key);
             mgr.delete(bucketName, key);
         } catch (Exception e) {
-            //getLog().warn("==== deleteObject exception: " + e.toString());
+            //getLog().debug("==== deleteObject exception: " + e.toString());
             throw new OSSException(e.toString());
         }
     }
