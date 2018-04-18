@@ -85,10 +85,9 @@ import java.util.zip.CheckedInputStream;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
 
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
@@ -279,13 +278,18 @@ public class OSSObjectOperation extends OSSOperation {
         try {
             Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
             String url = getEndpoint() + "/" + getObjectRequest.getKey();
-            HttpClient client = HttpClientBuilder.create().build();
-            HttpGet request = new HttpGet(auth.privateDownloadUrl(url, 3600));
+            CloseableHttpClient client = HttpClientBuilder.create().build();
+            String privateUrl = auth.privateDownloadUrl(url, 3600);
+            String host = getEndpoint().getHost();
+            privateUrl.replaceAll(host, "iovip.qbox.me");
+            HttpGet request = new HttpGet(privateUrl);
+            request.setHeader("HOST", getEndpoint().getHost());
             HttpResponse response = client.execute(request);
 
             ossObject.setBucketName(Objects.toString(getObjectRequest.getBucketName(), ""));
             ossObject.setKey(Objects.toString(getObjectRequest.getKey(), ""));
             ossObject.setObjectContent(response.getEntity().getContent());
+            client.close();
         } catch (IOException e){
             getLog().debug("==== getObject exception:" + e.getMessage());
             throw new OSSException(e.toString());
