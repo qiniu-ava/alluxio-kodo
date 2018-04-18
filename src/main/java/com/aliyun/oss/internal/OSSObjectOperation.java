@@ -438,7 +438,6 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         ensureObjectKeyValid(key);
 
-        if (++cc % 100 == 0) LogUtils.getLog().info(" ==== getObjectMetadata per 100 " + bucketName + ":" + key);
         try {
             FileInfo info = mgr.stat(bucketName, key);
             ObjectMetadata md = new ObjectMetadata();

@@ -439,7 +439,7 @@ public class OSSBucketOperation extends OSSOperation {
         BucketManager mgr = getBucketManager(credsProvider.getCredentials().getAccessKeyId(), 
                         credsProvider.getCredentials().getSecretAccessKey());
 
-        LogUtils.getLog().info("==== listObject headers:" + listObjectsRequest.getHeaders() 
+        LogUtils.getLog().debug("==== listObject headers:" + listObjectsRequest.getHeaders() 
                 + " params:" + listObjectsRequest.getParameters() + " encode:" + listObjectsRequest.getEncodingType()
                 + " bucket:" + listObjectsRequest.getBucketName() + " key:" + listObjectsRequest.getKey()
                 + " prefix:" + listObjectsRequest.getPrefix() + " marker:" + listObjectsRequest.getMarker()
