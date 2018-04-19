@@ -165,6 +165,68 @@ public abstract class OSSOperation {
         }
     }
 
+    protected <T> T doOperation(RequestMessage request, ResponseParser<T> parser, URI endPoint, String bucketName, String key,
+            boolean keepResponseOpen, List<RequestHandler> requestHandlers, List<ResponseHandler> reponseHandlers)
+            throws OSSException, ClientException {
+
+        final WebServiceRequest originalRequest = request.getOriginalRequest();
+        request.getHeaders().putAll(client.getClientConfiguration().getDefaultHeaders());
+        request.getHeaders().putAll(originalRequest.getHeaders());
+        request.getParameters().putAll(originalRequest.getParameters());
+
+        ExecutionContext context = createQiniuContext(request.getMethod(), endPoint, bucketName, key);
+
+        // if (context.getCredentials().useSecurityToken() && !request.isUseUrlSignature()) {
+        //     request.addHeader(OSSHeaders.OSS_SECURITY_TOKEN, context.getCredentials().getSecurityToken());
+        // }
+
+        context.addRequestHandler(new RequestProgressHanlder());
+        if (requestHandlers != null) {
+            for (RequestHandler handler : requestHandlers)
+                context.addRequestHandler(handler);
+        }
+        if (client.getClientConfiguration().isCrcCheckEnabled()) {
+            context.addRequestHandler(new RequestChecksumHanlder());
+        }
+
+        context.addResponseHandler(new ResponseProgressHandler(originalRequest));
+        if (reponseHandlers != null) {
+            for (ResponseHandler handler : reponseHandlers)
+                context.addResponseHandler(handler);
+        }
+        if (client.getClientConfiguration().isCrcCheckEnabled()) {
+            context.addResponseHandler(new ResponseChecksumHandler());
+        }
+
+        List<RequestSigner> signerHandlers = this.client.getClientConfiguration().getSignerHandlers();
+        if (signerHandlers != null) {
+            for (RequestSigner signer : signerHandlers) {
+                context.addSignerHandler(signer);
+            }
+        }
+
+        ResponseMessage response = send(request, context, keepResponseOpen);
+
+        try {
+            return parser.parse(response);
+        } catch (ResponseParseException rpe) {
+            OSSException oe = ExceptionFactory.createInvalidResponseException(response.getRequestId(), rpe.getMessage(),
+                    rpe);
+            logException("Unable to parse response error: ", rpe);
+            throw oe;
+        }
+    }
+
+    private static RequestSigner createQiniuSigner(HttpMethod method, URI endPoint, String bucketName, String key, Credentials creds) {
+        return new QiniuRequestSigner(method.toString(), endPoint, bucketName, key, creds);
+    }
+
+    protected ExecutionContext createQiniuContext(HttpMethod method, URI endPoint, String bucketName, String key) {
+        ExecutionContext context = new ExecutionContext();
+        context.setSigner(createQiniuSigner(method, endPoint, bucketName, key, credsProvider.getCredentials()));
+        return context;
+    }
+
     private static RequestSigner createSigner(HttpMethod method, String bucketName, String key, Credentials creds) {
         String resourcePath = "/" + ((bucketName != null) ? bucketName + "/" : "") + ((key != null ? key : ""));
 
