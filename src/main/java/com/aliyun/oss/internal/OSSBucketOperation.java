@@ -417,6 +417,18 @@ public class OSSBucketOperation extends OSSOperation {
                 ?  listObjects_oss(listObjectsRequest) : listObjects_qiniu(listObjectsRequest);
     }
 
+    private static Map <String, BucketManager> mgrs = new HashMap<String, BucketManager>();
+    public static BucketManager getBucketManager(String ak, String sk) {
+        String key = ak + sk;
+        BucketManager mgr = mgrs.get(key);
+        if (mgr != null) return mgr;
+
+        Auth auth = Auth.create(ak, sk);
+        mgr = new BucketManager(auth, new Configuration());     // 32 connection per bucket new see Client constructor
+        mgrs.put(key, mgr);
+        return mgr;
+    }
+
     public ObjectListing listObjects_qiniu(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
@@ -424,9 +436,8 @@ public class OSSBucketOperation extends OSSOperation {
         assertParameterNotNull(bucketName, "bucketName");
         ensureBucketNameValid(bucketName);
 
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), 
-                                credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = getBucketManager(credsProvider.getCredentials().getAccessKeyId(), 
+                        credsProvider.getCredentials().getSecretAccessKey());
 
         LogUtils.getLog().debug("==== listObject headers:" + listObjectsRequest.getHeaders() 
                 + " params:" + listObjectsRequest.getParameters() + " encode:" + listObjectsRequest.getEncodingType()

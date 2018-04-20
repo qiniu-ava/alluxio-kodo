@@ -27,7 +27,6 @@ import static com.aliyun.oss.common.utils.CodingUtils.assertTrue;
 import static com.aliyun.oss.common.utils.IOUtils.checkFile;
 import static com.aliyun.oss.common.utils.IOUtils.newRepeatableInputStream;
 import static com.aliyun.oss.common.utils.IOUtils.safeClose;
-import org.apache.commons.logging.Log;
 import static com.aliyun.oss.common.utils.LogUtils.getLog;
 import static com.aliyun.oss.common.utils.LogUtils.logException;
 import static com.aliyun.oss.event.ProgressPublisher.publishProgress;
@@ -41,12 +40,10 @@ import static com.aliyun.oss.internal.OSSUtils.determineInputStreamLength;
 import static com.aliyun.oss.internal.OSSUtils.ensureBucketNameValid;
 import static com.aliyun.oss.internal.OSSUtils.ensureCallbackValid;
 import static com.aliyun.oss.internal.OSSUtils.ensureObjectKeyValid;
-import static com.aliyun.oss.internal.OSSUtils.ensureCallbackValid;
 import static com.aliyun.oss.internal.OSSUtils.joinETags;
 import static com.aliyun.oss.internal.OSSUtils.populateRequestCallback;
 import static com.aliyun.oss.internal.OSSUtils.populateRequestMetadata;
 import static com.aliyun.oss.internal.OSSUtils.populateResponseHeaderParameters;
-import static com.aliyun.oss.internal.OSSUtils.populateRequestCallback;
 import static com.aliyun.oss.internal.OSSUtils.removeHeader;
 import static com.aliyun.oss.internal.OSSUtils.safeCloseResponse;
 import static com.aliyun.oss.internal.RequestParameters.ENCODING_TYPE;
@@ -59,8 +56,6 @@ import static com.aliyun.oss.internal.ResponseParsers.copyObjectResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.deleteObjectsResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectAclResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectMetadataResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.putObjectReponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.putObjectProcessReponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSimplifiedObjectMetaResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSymbolicLinkResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectProcessReponseParser;
@@ -81,14 +76,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+// import java.util.Objects;
 import java.util.zip.CheckedInputStream;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
 
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
@@ -146,6 +135,12 @@ import com.qiniu.storage.model.FileInfo;
 import com.qiniu.util.Auth;
 import com.qiniu.util.StringMap;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.client.HttpClient;
+
 /**
  * Object operation.
  */
@@ -178,7 +173,7 @@ public class OSSObjectOperation extends OSSOperation {
             LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " rsp:" + rsp);
             result.setRequestId(rsp.reqId);
         } catch (Exception e) {
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.toString());
+            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.getMessage());
             throw new OSSException(e.toString());
         }
 
@@ -269,32 +264,55 @@ public class OSSObjectOperation extends OSSOperation {
     public OSSObject getObject(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
 
         return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
-                ? getObject_oss(getObjectRequest) : getObject_qiniu(getObjectRequest);
+                ? getOSSObject(getObjectRequest) : getQiniuObject(getObjectRequest);
     }
 
-    public OSSObject getObject_qiniu(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
+    public OSSObject getQiniuObject(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
+        getLog().debug("==== getObject: " + getObjectRequest.getBucketName() + ":" + getObjectRequest.getKey());
+        String bucketName = getObjectRequest.getBucketName();
+        String key = getObjectRequest.getKey();
 
-        getLog().warn("==== getObject: " + getObjectRequest.getBucketName() + ":" + getObjectRequest.getKey());
-        OSSObject ossObject = new OSSObject();
+        Map<String, String> headers = new HashMap<String, String>();
+        populateGetObjectRequestHeaders(getObjectRequest, headers);
+
+        Map<String, String> params = new HashMap<String, String>();
+
+        populateResponseHeaderParameters(params, getObjectRequest.getResponseHeaders());
+        RequestMessage request = new OSSRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setMethod(HttpMethod.GET)
+            .setBucket(bucketName)
+            .setKey(key)
+            .setHeaders(headers)
+            .setParameters(params)
+            .setOriginalRequest(getObjectRequest).build();
+
+        final ProgressListener listener = getObjectRequest.getProgressListener();
+        OSSObject ossObject = null;
         try {
-            Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-            String url = getEndpoint() + "/" + getObjectRequest.getKey();
-            HttpClient client = HttpClientBuilder.create().build();
-            HttpGet request = new HttpGet(auth.privateDownloadUrl(url, 3600));
-            HttpResponse response = client.execute(request);
-
-            ossObject.setBucketName(Objects.toString(getObjectRequest.getBucketName(), ""));
-            ossObject.setKey(Objects.toString(getObjectRequest.getKey(), ""));
-            ossObject.setObjectContent(response.getEntity().getContent());
-        } catch (IOException e){
-            getLog().warn("==== getObject exception:" + e.getMessage());
-            throw new OSSException(e.toString());
+            publishProgress(listener, ProgressEventType.TRANSFER_STARTED_EVENT);
+            // doOperation(RequestMessage request, ResponseParser<T> parser, String endPoint, String bucketName, String key,
+            // boolean keepResponseOpen, List<RequestHandler> requestHandlers, List<ResponseHandler> reponseHandlers)
+            ossObject = doOperation(request, new GetObjectResponseParser(bucketName, key), getEndpoint(), bucketName, key, true, null, null);
+            InputStream instream = ossObject.getObjectContent();
+            ProgressInputStream progressInputStream = new ProgressInputStream(instream, listener) {
+                @Override
+                protected void onEOF() {
+                    publishProgress(getListener(), ProgressEventType.TRANSFER_COMPLETED_EVENT);
+                };
+            };
+            CRC64 crc = new CRC64();
+            CheckedInputStream checkedInputstream = new CheckedInputStream(progressInputStream, crc);
+            ossObject.setObjectContent(checkedInputstream);
+        } catch (RuntimeException e) {
+            publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
+            throw e;
         }
 
         return ossObject;
     }
 
-    public OSSObject getObject_oss(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
+    public OSSObject getOSSObject(GetObjectRequest getObjectRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(getObjectRequest, "getObjectRequest");
 
@@ -428,8 +446,7 @@ public class OSSObjectOperation extends OSSOperation {
     static long cc = 0;
     public ObjectMetadata getObjectMetadata_qiniu(GenericRequest genericRequest) throws OSSException, ClientException {
 
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
         assertParameterNotNull(genericRequest, "genericRequest");
         String bucketName = genericRequest.getBucketName();
         String key = genericRequest.getKey();
@@ -439,7 +456,6 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         ensureObjectKeyValid(key);
 
-        if (++cc % 100 == 0) LogUtils.getLog().debug(" ==== getObjectMetadata per 100 " + bucketName + ":" + key);
         try {
             FileInfo info = mgr.stat(bucketName, key);
             ObjectMetadata md = new ObjectMetadata();
@@ -503,18 +519,17 @@ public class OSSObjectOperation extends OSSOperation {
 
         assertParameterNotNull(copyObjectRequest, "copyObjectRequest");
 
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
 
         try {
-            getLog().warn("==== copyObject: " + copyObjectRequest);
+            getLog().debug("==== copyObject: " + copyObjectRequest);
             Response rsp = mgr.copy(copyObjectRequest.getSourceBucketName(), copyObjectRequest.getSourceKey(),
                      copyObjectRequest.getDestinationBucketName(), copyObjectRequest.getDestinationKey(), true);
             CopyObjectResult result = new CopyObjectResult();
             result.setRequestId(rsp.reqId);
             return result;
         } catch (Exception e) {
-            getLog().warn("==== copyObject exception: " + e.toString());
+            getLog().debug("==== copyObject exception: " + e.toString());
             throw new OSSException(e.toString());
         }
     }
@@ -556,13 +571,12 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         assertParameterNotNull(key, "key");
         ensureObjectKeyValid(key);
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        BucketManager mgr = new BucketManager(auth, new Configuration());
+        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
         try {
-            getLog().warn("==== deleteObject " + bucketName + ":" + key);
+            getLog().debug("==== deleteObject " + bucketName + ":" + key);
             mgr.delete(bucketName, key);
         } catch (Exception e) {
-            //getLog().warn("==== deleteObject exception: " + e.toString());
+            //getLog().debug("==== deleteObject exception: " + e.toString());
             throw new OSSException(e.toString());
         }
     }
