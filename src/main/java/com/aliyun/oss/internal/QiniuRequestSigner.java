@@ -19,23 +19,31 @@
 
 package com.aliyun.oss.internal;
 
+import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
-
-import javax.naming.AuthenticationException;
+import java.net.URLEncoder;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.aliyun.oss.ClientException;
+import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.common.auth.Credentials;
 import com.aliyun.oss.common.auth.RequestSigner;
-import com.aliyun.oss.common.auth.ServiceSignature;
+import com.aliyun.oss.common.comm.QiniuCommand;
 import com.aliyun.oss.common.comm.RequestMessage;
 import com.qiniu.util.Auth;
 
 public class QiniuRequestSigner implements RequestSigner {
-    static public String DEFAULT_ORIGIN_DOMAIN = "";
-
-    private String httpMethod;
+    static private String DEFAULT_IO_DOMAIN = "iovip.qbox.me";
+    static private String DEFAULT_RS_DOMAIN = "rs.qiniu.com";
+    // static private String DEFAULT_RS_DOMAIN = "rs-z0.qiniu.com";
+    static private String DEFAULT_RSF_DOMAIN = "rsf-z0.qiniu.com";
+    static private String DEFAULT_UP_DOMAIN = "up.qiniu.com";
+    static private String REQUEST_CONTENT_TYPE = "application/x-www-form-urlencoded";
+    private QiniuCommand command;
 
     /* Note that resource path should not have been url-encoded. */
     private URI endPoint;
@@ -43,8 +51,8 @@ public class QiniuRequestSigner implements RequestSigner {
     private String key;
     private Credentials creds;
 
-    public QiniuRequestSigner(String httpMethod, URI endPoint, String bucket, String key, Credentials creds) {
-        this.httpMethod = httpMethod;
+    public QiniuRequestSigner(QiniuCommand command, URI endPoint, String bucket, String key, Credentials creds) {
+        this.command = command;
         this.endPoint = endPoint;
         this.bucket = bucket;
         this.key = key;
@@ -53,20 +61,127 @@ public class QiniuRequestSigner implements RequestSigner {
 
     @Override
     public void sign(RequestMessage request) throws ClientException {
+        switch (command) {
+            case GET_OBJ_DATA:
+                signGetObject(request);
+                break;
+            case GET_OBJ_META:
+                signGetMeta(request);
+                break;
+            case LIST_OBJ:
+                signListObj(request);
+                break;
+            case POST_OBJ:
+                signPostObj(request);
+                break;
+            case DELETE_OBJ:
+                signDeleteObj(request);
+                break;
+        }
+    }
+
+    private void signGetObject(RequestMessage request) throws ClientException {
         String accessKeyId = creds.getAccessKeyId();
         String secretAccessKey = creds.getSecretAccessKey();
 
         if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
-            // String url = String.format("http://", QiniuRequestSigner.DEFAULT_ORIGIN_DOMAIN, request.getAbsoluteUrl());
             Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
             try {
                 URL originURL = new URL("http", this.endPoint.toString(), this.key);
                 String privateUrl = auth.privateDownloadUrl(originURL.toString());
                 URL url = new URL(privateUrl);
-                url = new URL("http", QiniuRequestSigner.DEFAULT_ORIGIN_DOMAIN, url.getFile());
+                url = new URL("http", QiniuRequestSigner.DEFAULT_IO_DOMAIN, url.getFile());
                 request.setAbsoluteUrl(url);
                 request.addHeader(OSSHeaders.HOST, this.endPoint.toString());
             } catch (MalformedURLException err) {}
+        }
+    }
+
+    private void signGetMeta(RequestMessage request) throws ClientException {
+        String accessKeyId = creds.getAccessKeyId();
+        String secretAccessKey = creds.getSecretAccessKey();
+        String bucket = request.getBucket();
+        String key = request.getKey();
+
+        if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
+            Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
+            try {
+                String path = "stat/" + SignUtils.encodeEntryURI(bucket, key);
+                URL url = new URL("http://" + QiniuRequestSigner.DEFAULT_RS_DOMAIN + "/" + path);
+                String token = auth.signRequest(url.toString(), null, REQUEST_CONTENT_TYPE);
+                request.setAbsoluteUrl(url);
+                Map<String, String> headers = new HashMap<String, String>();
+                headers.put(OSSHeaders.AUTHORIZATION, "QBox " + token);
+                request.setHeaders(headers);
+                request.setParameters(null);
+                request.setEndpoint(new URI("http://" + QiniuRequestSigner.DEFAULT_RS_DOMAIN));
+                request.setResourcePath(path);
+                request.setContent(null);
+                request.setMethod(HttpMethod.GET);
+            } catch (MalformedURLException err) {
+            } catch (URISyntaxException err) {}
+        }
+    }
+
+    private void signListObj(RequestMessage request) throws ClientException {
+        try {
+            String accessKeyId = creds.getAccessKeyId();
+            String secretAccessKey = creds.getSecretAccessKey();
+            String bucket = request.getBucket();
+            String prefix = URLEncoder.encode(request.getKey(), "UTF-8");
+            String marker = request.getParameters().get("marker");
+            String limit = request.getParameters().get("limit");
+            String delimiter = URLEncoder.encode(request.getParameters().get("delimiter"), "UTF-8");
+
+            if (marker == null) {
+                marker = "";
+            } else if (marker.equals("null")) {
+                marker = "";
+            }
+
+            if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
+                try {
+                    Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
+                    String path = String.format(
+                        "list?bucket=%s&prefix=%s&limit=%s&marker=%s&delimiter=%s",
+                        bucket,
+                        prefix,
+                        limit,
+                        marker,
+                        delimiter
+                        );
+                    URL url = new URL("http://" + DEFAULT_RSF_DOMAIN + "/" + path);
+                    String token = auth.signRequest(url.toString(), null, REQUEST_CONTENT_TYPE);
+                    request.setAbsoluteUrl(url);
+                    Map<String, String> headers = new HashMap<String, String>();
+                    headers.put(OSSHeaders.AUTHORIZATION, "QBox " + token);
+                    headers.put(OSSHeaders.CONTENT_TYPE, REQUEST_CONTENT_TYPE);
+                    request.setHeaders(headers);
+                    request.setParameters(null);
+                    request.setEndpoint(new URI("http://" + DEFAULT_RSF_DOMAIN));
+                    request.setResourcePath(path);
+                    request.setContent(null);
+                    request.setMethod(HttpMethod.GET);
+                } catch (MalformedURLException err) {
+                } catch (URISyntaxException err) {}
+            }
+        } catch (UnsupportedEncodingException err) {}
+        
+    }
+
+    private void signPostObj(RequestMessage request) throws ClientException {
+        String accessKeyId = creds.getAccessKeyId();
+        String secretAccessKey = creds.getSecretAccessKey();
+
+        if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
+        }
+    }
+
+    private void signDeleteObj(RequestMessage request) throws ClientException {
+        String accessKeyId = creds.getAccessKeyId();
+        String secretAccessKey = creds.getSecretAccessKey();
+
+        if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
         }
     }
 }

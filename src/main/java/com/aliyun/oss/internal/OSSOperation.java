@@ -19,10 +19,14 @@
 
 package com.aliyun.oss.internal;
 
+import static com.aliyun.oss.common.utils.LogUtils.getLog;
 import static com.aliyun.oss.common.utils.LogUtils.logException;
 import static com.aliyun.oss.internal.OSSConstants.DEFAULT_CHARSET_NAME;
 import static com.aliyun.oss.internal.OSSUtils.safeCloseResponse;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.List;
 
@@ -35,6 +39,7 @@ import com.aliyun.oss.common.auth.CredentialsProvider;
 import com.aliyun.oss.common.auth.RequestSigner;
 import com.aliyun.oss.common.comm.ExecutionContext;
 import com.aliyun.oss.common.comm.NoRetryStrategy;
+import com.aliyun.oss.common.comm.QiniuCommand;
 import com.aliyun.oss.common.comm.RequestChecksumHanlder;
 import com.aliyun.oss.common.comm.RequestHandler;
 import com.aliyun.oss.common.comm.RequestMessage;
@@ -48,6 +53,7 @@ import com.aliyun.oss.common.comm.ServiceClient;
 import com.aliyun.oss.common.parser.ResponseParseException;
 import com.aliyun.oss.common.parser.ResponseParser;
 import com.aliyun.oss.common.utils.ExceptionFactory;
+import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.internal.ResponseParsers.EmptyResponseParser;
 import com.aliyun.oss.model.WebServiceRequest;
 
@@ -165,7 +171,7 @@ public abstract class OSSOperation {
         }
     }
 
-    protected <T> T doOperation(RequestMessage request, ResponseParser<T> parser, URI endPoint, String bucketName, String key,
+    protected <T> T doQiniuOperation(RequestMessage request, ResponseParser<T> parser, URI endPoint, String bucketName, String key,
             boolean keepResponseOpen, List<RequestHandler> requestHandlers, List<ResponseHandler> reponseHandlers)
             throws OSSException, ClientException {
 
@@ -174,11 +180,7 @@ public abstract class OSSOperation {
         request.getHeaders().putAll(originalRequest.getHeaders());
         request.getParameters().putAll(originalRequest.getParameters());
 
-        ExecutionContext context = createQiniuContext(request.getMethod(), endPoint, bucketName, key);
-
-        // if (context.getCredentials().useSecurityToken() && !request.isUseUrlSignature()) {
-        //     request.addHeader(OSSHeaders.OSS_SECURITY_TOKEN, context.getCredentials().getSecurityToken());
-        // }
+        ExecutionContext context = createQiniuContext(request.getCommand(), endPoint, bucketName, key);
 
         context.addRequestHandler(new RequestProgressHanlder());
         if (requestHandlers != null) {
@@ -206,6 +208,7 @@ public abstract class OSSOperation {
         }
 
         ResponseMessage response = send(request, context, keepResponseOpen);
+        LogUtils.getLog().warn("qiniu operation: " + request.toString());
 
         try {
             return parser.parse(response);
@@ -217,13 +220,13 @@ public abstract class OSSOperation {
         }
     }
 
-    private static RequestSigner createQiniuSigner(HttpMethod method, URI endPoint, String bucketName, String key, Credentials creds) {
-        return new QiniuRequestSigner(method.toString(), endPoint, bucketName, key, creds);
+    private static RequestSigner createQiniuSigner(QiniuCommand command, URI endPoint, String bucketName, String key, Credentials creds) {
+        return new QiniuRequestSigner(command, endPoint, bucketName, key, creds);
     }
 
-    protected ExecutionContext createQiniuContext(HttpMethod method, URI endPoint, String bucketName, String key) {
+    protected ExecutionContext createQiniuContext(QiniuCommand command, URI endPoint, String bucketName, String key) {
         ExecutionContext context = new ExecutionContext();
-        context.setSigner(createQiniuSigner(method, endPoint, bucketName, key, credsProvider.getCredentials()));
+        context.setSigner(createQiniuSigner(command, endPoint, bucketName, key, credsProvider.getCredentials()));
         return context;
     }
 

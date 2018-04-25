@@ -32,6 +32,8 @@ public class ResponseMessage extends HttpMesssage {
     private String uri;
     private int statusCode;
 
+    private String bucket;
+
     private ServiceClient.Request request;
     private CloseableHttpResponse httpResponse;
 
@@ -60,6 +62,14 @@ public class ResponseMessage extends HttpMesssage {
 
     public String getRequestId() {
         return getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID);
+    }
+
+    public void setBucket(String bucket) {
+        this.bucket = bucket;
+    }
+
+    public String getBucket() {
+        return this.bucket;
     }
 
     public ServiceClient.Request getRequest() {

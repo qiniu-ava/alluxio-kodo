@@ -47,6 +47,9 @@ public class RequestMessage extends HttpMesssage {
     /* The HTTP method to use when sending this request */
     private HttpMethod method = HttpMethod.GET;
 
+    /* kodo command */
+    private QiniuCommand command = QiniuCommand.GET_OBJ_DATA;
+
     /* Use a LinkedHashMap to preserve the insertion order. */
     private Map<String, String> parameters = new LinkedHashMap<String, String>();
 
@@ -76,6 +79,14 @@ public class RequestMessage extends HttpMesssage {
 
     public void setMethod(HttpMethod method) {
         this.method = method;
+    }
+
+    public QiniuCommand getCommand() {
+        return command;
+    }
+
+    public void setCommand(QiniuCommand command) {
+        this.command = command;
     }
 
     public URI getEndpoint() {

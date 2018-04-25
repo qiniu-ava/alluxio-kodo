@@ -22,6 +22,8 @@ package com.aliyun.oss.model;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.qiniu.util.StringUtils;
+
 public class ObjectListing extends GenericResult {
 
     /**
@@ -46,6 +48,27 @@ public class ObjectListing extends GenericResult {
     private String delimiter;
 
     private String encodingType;
+
+    @Override
+    public String toString() {
+        List<String> objSummaryStrs = new ArrayList<String>();
+        for (OSSObjectSummary objectSummary: objectSummaries) {
+            objSummaryStrs.add(objectSummary.toString());
+        }
+        return String.format(
+            "{bucketName: %s, prefix: %s, marker: %s, maxKeys: %s, delimiter: %s, encodingType: %s, nextMarker: %s, isTruncated: %s, commonPrefixes: %s, objectSummaries: %s}",
+            bucketName,
+            prefix,
+            marker,
+            String.valueOf(maxKeys),
+            delimiter,
+            encodingType,
+            nextMarker,
+            String.valueOf(isTruncated),
+            StringUtils.join(commonPrefixes, "", null),
+            StringUtils.join(objSummaryStrs, "", null)
+        );
+    }
 
     public List<OSSObjectSummary> getObjectSummaries() {
         return objectSummaries;

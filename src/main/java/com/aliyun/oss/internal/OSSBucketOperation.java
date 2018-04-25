@@ -19,75 +19,69 @@
 
 package com.aliyun.oss.internal;
 
+import static com.aliyun.oss.common.parser.RequestMarshallers.addBucketCnameRequestMarshaller;
+import static com.aliyun.oss.common.parser.RequestMarshallers.addBucketReplicationRequestMarshaller;
+import static com.aliyun.oss.common.parser.RequestMarshallers.bucketImageProcessConfMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.bucketRefererMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.createBucketRequestMarshaller;
+import static com.aliyun.oss.common.parser.RequestMarshallers.deleteBucketCnameRequestMarshaller;
+import static com.aliyun.oss.common.parser.RequestMarshallers.deleteBucketReplicationRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.putBucketImageRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.putImageStyleRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketLifecycleRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketLoggingRequestMarshaller;
+import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketQosRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketTaggingRequestMarshaller;
 import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketWebsiteRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.addBucketReplicationRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.deleteBucketReplicationRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.addBucketCnameRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.deleteBucketCnameRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.setBucketQosRequestMarshaller;
-import static com.aliyun.oss.common.parser.RequestMarshallers.bucketImageProcessConfMarshaller;
 import static com.aliyun.oss.common.utils.CodingUtils.assertParameterNotNull;
 import static com.aliyun.oss.internal.OSSUtils.OSS_RESOURCE_MANAGER;
 import static com.aliyun.oss.internal.OSSUtils.ensureBucketNameValid;
 import static com.aliyun.oss.internal.OSSUtils.safeCloseResponse;
+import static com.aliyun.oss.internal.RequestParameters.BID;
 import static com.aliyun.oss.internal.RequestParameters.DELIMITER;
 import static com.aliyun.oss.internal.RequestParameters.ENCODING_TYPE;
 import static com.aliyun.oss.internal.RequestParameters.MARKER;
 import static com.aliyun.oss.internal.RequestParameters.MAX_KEYS;
 import static com.aliyun.oss.internal.RequestParameters.PREFIX;
-import static com.aliyun.oss.internal.RequestParameters.BID;
 import static com.aliyun.oss.internal.RequestParameters.STYLE_NAME;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_ACL;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_IMG;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LIFECYCLE;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LOCATION;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LOGGING;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_PROCESS_CONF;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REFERER;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STYLE;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_TAGGING;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_WEBSITE;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_PROCESS_CONF;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketAclResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketCnameResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketImageProcessConfResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketImageResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketInfoResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketLifecycleResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketLocationResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketLoggingResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketQosResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketRefererResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationLocationResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationProgressResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getBucketStatResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketTaggingResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getBucketWebsiteResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationProgressResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketReplicationLocationResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketCnameResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketInfoResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketStatResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketQosResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.listBucketResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.listObjectsReponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketImageResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getImageStyleResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.listBucketResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.listImageStyleResponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getBucketImageProcessConfResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.listObjectsReponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.listQiniuObjectsReponseParser;
 
 import java.io.ByteArrayInputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-
-import org.apache.commons.logging.Log;
 
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
@@ -95,6 +89,7 @@ import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.ServiceException;
 import com.aliyun.oss.common.auth.CredentialsProvider;
+import com.aliyun.oss.common.comm.QiniuCommand;
 import com.aliyun.oss.common.comm.RequestMessage;
 import com.aliyun.oss.common.comm.ResponseHandler;
 import com.aliyun.oss.common.comm.ResponseMessage;
@@ -102,7 +97,10 @@ import com.aliyun.oss.common.comm.ServiceClient;
 import com.aliyun.oss.common.utils.BinaryUtil;
 import com.aliyun.oss.common.utils.ExceptionFactory;
 import com.aliyun.oss.common.utils.HttpHeaders;
+import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.model.AccessControlList;
+import com.aliyun.oss.model.AddBucketCnameRequest;
+import com.aliyun.oss.model.AddBucketReplicationRequest;
 import com.aliyun.oss.model.Bucket;
 import com.aliyun.oss.model.BucketInfo;
 import com.aliyun.oss.model.BucketList;
@@ -121,40 +119,31 @@ import com.aliyun.oss.model.DeleteBucketReplicationRequest;
 import com.aliyun.oss.model.GenericRequest;
 import com.aliyun.oss.model.GetBucketImageResult;
 import com.aliyun.oss.model.GetBucketReplicationProgressRequest;
-import com.aliyun.oss.model.ImageProcess;
-import com.aliyun.oss.model.ReplicationRule;
 import com.aliyun.oss.model.GetImageStyleResult;
+import com.aliyun.oss.model.ImageProcess;
 import com.aliyun.oss.model.LifecycleRule;
 import com.aliyun.oss.model.ListBucketsRequest;
 import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.ObjectListing;
 import com.aliyun.oss.model.PutBucketImageRequest;
 import com.aliyun.oss.model.PutImageStyleRequest;
+import com.aliyun.oss.model.ReplicationRule;
 import com.aliyun.oss.model.SetBucketAclRequest;
-import com.aliyun.oss.model.AddBucketCnameRequest;
 import com.aliyun.oss.model.SetBucketLifecycleRequest;
 import com.aliyun.oss.model.SetBucketLoggingRequest;
 import com.aliyun.oss.model.SetBucketProcessRequest;
 import com.aliyun.oss.model.SetBucketRefererRequest;
-import com.aliyun.oss.model.AddBucketReplicationRequest;
 import com.aliyun.oss.model.SetBucketStorageCapacityRequest;
 import com.aliyun.oss.model.SetBucketTaggingRequest;
 import com.aliyun.oss.model.SetBucketWebsiteRequest;
-import com.aliyun.oss.model.TagSet;
 import com.aliyun.oss.model.Style;
+import com.aliyun.oss.model.TagSet;
 import com.aliyun.oss.model.UserQos;
-
-import org.apache.http.*;
-
-import com.aliyun.oss.common.utils.LogUtils;
 import com.qiniu.storage.BucketManager;
-import com.qiniu.storage.model.FileInfo;
-import com.qiniu.storage.model.FileListing;
-import com.qiniu.util.Auth;
 import com.qiniu.storage.Configuration;
-import com.aliyun.oss.model.OSSObjectSummary;
+import com.qiniu.util.Auth;
 
-import java.util.Date;
+import org.apache.http.HttpStatus;
 
 /**
  * Bucket operation.
@@ -414,7 +403,7 @@ public class OSSBucketOperation extends OSSOperation {
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
 
         return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
-                ?  listObjects_oss(listObjectsRequest) : listObjects_qiniu(listObjectsRequest);
+                ?  listOSSObjects(listObjectsRequest) : listQiniuObjects(listObjectsRequest);
     }
 
     private static Map <String, BucketManager> mgrs = new HashMap<String, BucketManager>();
@@ -429,70 +418,43 @@ public class OSSBucketOperation extends OSSOperation {
         return mgr;
     }
 
-    public ObjectListing listObjects_qiniu(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
-
-        assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
-        String bucketName = listObjectsRequest.getBucketName();
-        assertParameterNotNull(bucketName, "bucketName");
-        ensureBucketNameValid(bucketName);
-
-        BucketManager mgr = getBucketManager(credsProvider.getCredentials().getAccessKeyId(), 
-                        credsProvider.getCredentials().getSecretAccessKey());
-
-        LogUtils.getLog().debug("==== listObject headers:" + listObjectsRequest.getHeaders() 
-                + " params:" + listObjectsRequest.getParameters() + " encode:" + listObjectsRequest.getEncodingType()
-                + " bucket:" + listObjectsRequest.getBucketName() + " key:" + listObjectsRequest.getKey()
-                + " prefix:" + listObjectsRequest.getPrefix() + " marker:" + listObjectsRequest.getMarker()
-                + " maxkeys:" + listObjectsRequest.getMaxKeys() + " delimiter:" + listObjectsRequest.getDelimiter());
-
-        String bucket = Objects.toString(listObjectsRequest.getBucketName(), "");
-        String marker = Objects.toString(listObjectsRequest.getMarker(), "");
-        String prefix = Objects.toString(listObjectsRequest.getPrefix(), "");
-        String delimiter = Objects.toString(listObjectsRequest.getDelimiter(), "");
-        int limit = listObjectsRequest.getMaxKeys();
-
+    public ObjectListing listQiniuObjects(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
         try {
-            ObjectListing result = new ObjectListing();
-            FileListing ls = mgr.listFiles(bucket, prefix, marker, limit, delimiter);
+            LogUtils.getLog().warn("trying to list qiniu objects, request: " + listObjectsRequest.toString());
+            assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
+            String bucketName = listObjectsRequest.getBucketName();
+            String prefix = listObjectsRequest.getPrefix();
+            assertParameterNotNull(bucketName, "bucketName");
+            ensureBucketNameValid(bucketName);
 
-            if (ls != null) {
-                for (FileInfo info: ls.items) {
-                    OSSObjectSummary sm = new OSSObjectSummary();
-                    sm.setKey(Objects.toString(info.key, ""));
-                    sm.setSize(info.fsize);
-                    sm.setETag(Objects.toString(info.hash, ""));
-                    sm.setLastModified(new Date(info.putTime));
-                    result.addObjectSummary(sm);
-                }
-                if (ls.commonPrefixes != null) {
-                    for (String s: ls.commonPrefixes) {
-                        result.addCommonPrefix(s);
-                    }
-                }
-                marker = (ls.marker == null) ? "" : ls.marker;
-                //TODO set the listObjectsRequest here may not be a good idea
-                listObjectsRequest.setMarker(marker);
-                listObjectsRequest.incTries();
-            }
+            Map<String, String> params = new LinkedHashMap<String, String>();
+            populateListObjectsRequestParameters(listObjectsRequest, params);
 
-            result.setBucketName(bucket);
-            result.setEncodingType(Objects.toString(listObjectsRequest.getEncodingType(), ""));
-            result.setMarker(marker);
-            result.setNextMarker(marker);
-            result.setTruncated(!marker.equals(""));
+            RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+                .setEndpoint(getEndpoint())
+                .setCommand(QiniuCommand.LIST_OBJ)
+                .setBucket(bucketName)
+                .setKey(prefix)
+                .setParameters(params)
+                .setOriginalRequest(listObjectsRequest)
+                .build();
 
-            if (listObjectsRequest.getTries() == listObjectsRequest.MAX_TRIES) {
+            ObjectListing result = doQiniuOperation(request, listQiniuObjectsReponseParser, getEndpoint(), bucketName, prefix, true, null, null);
+
+            listObjectsRequest.incTries();
+            listObjectsRequest.setMarker(result.getMarker());
+            if (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES) {
                 result.setTruncated(false); // stop here
             }
 
             return result;
         } catch (Exception e) {
-            //throw new OSSException(e.toString());
+            LogUtils.getLog().error("listQiniuObjects error: " + e.toString());
             return new ObjectListing();
         }
     }
 
-    public ObjectListing listObjects_oss(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
+    public ObjectListing listOSSObjects(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
 
