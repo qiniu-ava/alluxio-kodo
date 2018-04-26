@@ -60,7 +60,6 @@ import static com.aliyun.oss.internal.ResponseParsers.getSimplifiedObjectMetaRes
 import static com.aliyun.oss.internal.ResponseParsers.getSymbolicLinkResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectProcessReponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectReponseParser;
-
 import static com.aliyun.oss.internal.ResponseParsers.getQiniuObjectMetadataResponseParser;
 
 import java.io.BufferedOutputStream;
@@ -438,6 +437,7 @@ public class OSSObjectOperation extends OSSOperation {
     }
 
     public ObjectMetadata getQiniuObjectMetadata(GenericRequest genericRequest) throws OSSException, ClientException {
+        LogUtils.getLog().debug("trying to get qiniu object metadata, " + genericRequest.toString());
         assertParameterNotNull(genericRequest, "genericRequest");
         String bucketName = genericRequest.getBucketName();
         String key = genericRequest.getKey();

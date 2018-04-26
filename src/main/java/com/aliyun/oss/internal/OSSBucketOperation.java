@@ -419,11 +419,16 @@ public class OSSBucketOperation extends OSSOperation {
     }
 
     public ObjectListing listQiniuObjects(ListObjectsRequest listObjectsRequest) throws OSSException, ClientException {
+        LogUtils.getLog().debug("trying to list qiniu objects, request: " + listObjectsRequest.toString());
         try {
-            LogUtils.getLog().warn("trying to list qiniu objects, request: " + listObjectsRequest.toString());
             assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
             String bucketName = listObjectsRequest.getBucketName();
             String prefix = listObjectsRequest.getPrefix();
+
+            if (prefix == null) {
+                prefix = "";
+            }
+
             assertParameterNotNull(bucketName, "bucketName");
             ensureBucketNameValid(bucketName);
 

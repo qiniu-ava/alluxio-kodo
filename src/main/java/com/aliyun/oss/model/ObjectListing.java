@@ -65,8 +65,8 @@ public class ObjectListing extends GenericResult {
             encodingType,
             nextMarker,
             String.valueOf(isTruncated),
-            StringUtils.join(commonPrefixes, "", null),
-            StringUtils.join(objSummaryStrs, "", null)
+            StringUtils.join(commonPrefixes, ", ", null),
+            StringUtils.join(objSummaryStrs, ", ", null)
         );
     }
 

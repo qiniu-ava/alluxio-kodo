@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonInclude(Include.NON_NULL)
 public final class QiniuObjectMetadata {
+    public String error = "";
     public String key = "";
     public String hash = "";
     public long fsize = 0;
@@ -35,6 +36,10 @@ public final class QiniuObjectMetadata {
     public int type = 0;
 
     public ObjectMetadata toObjectMetadata() {
+        if (!error.equals("")) {
+            return null;
+        }
+
         ObjectMetadata objectMetadata = new ObjectMetadata();
         objectMetadata.setHeader("key", key);
         objectMetadata.setHeader(OSSHeaders.CONTENT_LENGTH, fsize);
@@ -44,6 +49,10 @@ public final class QiniuObjectMetadata {
     }
 
     public OSSObjectSummary toObjectSummary() {
+        if (!error.equals("")) {
+            return null;
+        }
+
         OSSObjectSummary objectSummary = new OSSObjectSummary();
         objectSummary.setKey(key);
         objectSummary.setSize(fsize);

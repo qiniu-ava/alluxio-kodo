@@ -19,14 +19,10 @@
 
 package com.aliyun.oss.internal;
 
-import static com.aliyun.oss.common.utils.LogUtils.getLog;
 import static com.aliyun.oss.common.utils.LogUtils.logException;
 import static com.aliyun.oss.internal.OSSConstants.DEFAULT_CHARSET_NAME;
 import static com.aliyun.oss.internal.OSSUtils.safeCloseResponse;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.List;
 
@@ -208,7 +204,7 @@ public abstract class OSSOperation {
         }
 
         ResponseMessage response = send(request, context, keepResponseOpen);
-        LogUtils.getLog().warn("qiniu operation: " + request.toString());
+        LogUtils.getLog().debug("qiniu operation: " + request.toString());
 
         try {
             return parser.parse(response);

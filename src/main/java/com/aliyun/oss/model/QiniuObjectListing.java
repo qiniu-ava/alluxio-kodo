@@ -19,7 +19,6 @@
 
 package com.aliyun.oss.model;
 
-import com.aliyun.oss.common.utils.LogUtils;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.qiniu.util.StringUtils;
@@ -32,6 +31,10 @@ public class QiniuObjectListing {
     public String[] commonPrefixes;
 
     public ObjectListing toObjectListing(String bucket) {
+        if (!error.equals("")) {
+            return null;
+        }
+
         String mMarker = "";
         if (marker != null && !marker.equals("null")) {
             mMarker = marker;
@@ -44,10 +47,11 @@ public class QiniuObjectListing {
         }
         if (items != null) {
             for (QiniuObjectMetadata item: items) {
-                objectListing.addObjectSummary(item.toObjectSummary());
+                OSSObjectSummary sm = item.toObjectSummary();
+                sm.setBucketName(bucket);
+                objectListing.addObjectSummary(sm);
             }
         }
-        LogUtils.getLog().warn(" toObjectListing marker: " + mMarker);
         objectListing.setBucketName(bucket);
         objectListing.setTruncated(!mMarker.equals(""));
         objectListing.setEncodingType("");

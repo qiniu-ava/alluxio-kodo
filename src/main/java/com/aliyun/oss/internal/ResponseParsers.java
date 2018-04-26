@@ -1604,10 +1604,6 @@ public final class ResponseParsers {
             ObjectMapper mapper = new ObjectMapper();
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             QiniuObjectMetadata qiniuObjects = mapper.readValue(responseBody, QiniuObjectMetadata.class);
-            LogUtils.getLog().warn(" --------------------------------------------------- toString() -------------------------------- ");
-            LogUtils.getLog().warn(qiniuObjects.toString());
-            LogUtils.getLog().warn(" ---------------------------------------------- toObjectMetadata().toString() ---------------------------- ");
-            LogUtils.getLog().warn(qiniuObjects.toObjectMetadata().toString());
             return qiniuObjects.toObjectMetadata();
         } catch (JsonMappingException e) {
             throw new ResponseParseException(e.getMessage());

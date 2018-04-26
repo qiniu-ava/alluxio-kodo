@@ -27,6 +27,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
@@ -127,17 +128,11 @@ public class QiniuRequestSigner implements RequestSigner {
         try {
             String accessKeyId = creds.getAccessKeyId();
             String secretAccessKey = creds.getSecretAccessKey();
-            String bucket = request.getBucket();
-            String prefix = URLEncoder.encode(request.getKey(), "UTF-8");
-            String marker = request.getParameters().get("marker");
-            String limit = request.getParameters().get("limit");
-            String delimiter = URLEncoder.encode(request.getParameters().get("delimiter"), "UTF-8");
-
-            if (marker == null) {
-                marker = "";
-            } else if (marker.equals("null")) {
-                marker = "";
-            }
+            String bucket = Objects.toString(request.getBucket(), "");
+            String prefix = URLEncoder.encode(Objects.toString(request.getKey(), ""), "UTF-8");
+            String marker = Objects.toString(request.getParameters().get("marker"), "");
+            String limit = Objects.toString(request.getParameters().get("limit"), "");
+            String delimiter = URLEncoder.encode(Objects.toString(request.getParameters().get("delimiter"), ""), "UTF-8");
 
             if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
                 try {
@@ -149,7 +144,7 @@ public class QiniuRequestSigner implements RequestSigner {
                         limit,
                         marker,
                         delimiter
-                        );
+                    );
                     URL url = new URL("http://" + DEFAULT_RSF_DOMAIN + "/" + path);
                     String token = auth.signRequest(url.toString(), null, REQUEST_CONTENT_TYPE);
                     request.setAbsoluteUrl(url);
@@ -166,7 +161,6 @@ public class QiniuRequestSigner implements RequestSigner {
                 } catch (URISyntaxException err) {}
             }
         } catch (UnsupportedEncodingException err) {}
-        
     }
 
     private void signPostObj(RequestMessage request) throws ClientException {
