@@ -56,11 +56,13 @@ import static com.aliyun.oss.internal.ResponseParsers.copyObjectResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.deleteObjectsResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectAclResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectMetadataResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getQiniuObjectMetadataResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSimplifiedObjectMetaResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSymbolicLinkResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.makeQiniuBlockResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.makeQiniuFileResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectProcessReponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectReponseParser;
-import static com.aliyun.oss.internal.ResponseParsers.getQiniuObjectMetadataResponseParser;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
@@ -100,6 +102,7 @@ import com.aliyun.oss.common.utils.HttpUtil;
 import com.aliyun.oss.common.utils.IOUtils;
 import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.common.utils.RangeSpec;
+import com.aliyun.oss.event.ProgressEvent;
 import com.aliyun.oss.event.ProgressEventType;
 import com.aliyun.oss.event.ProgressInputStream;
 import com.aliyun.oss.event.ProgressListener;
@@ -123,16 +126,16 @@ import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.ProcessObjectRequest;
 import com.aliyun.oss.model.PutObjectRequest;
 import com.aliyun.oss.model.PutObjectResult;
+import com.aliyun.oss.model.QiniuBlock;
+import com.aliyun.oss.model.QiniuFileResponse;
 import com.aliyun.oss.model.RestoreObjectResult;
 import com.aliyun.oss.model.SetObjectAclRequest;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
-import com.qiniu.http.Client;
+import com.qiniu.common.Constants;
 import com.qiniu.http.Response;
 import com.qiniu.storage.BucketManager;
-import com.qiniu.storage.Configuration;
-import com.qiniu.storage.StreamUploader;
-import com.qiniu.util.Auth;
-import com.qiniu.util.StringMap;
+import com.qiniu.util.Crc32;
+import com.qiniu.util.StringUtils;
 
 import org.apache.http.HttpStatus;
 
@@ -150,32 +153,178 @@ public class OSSObjectOperation extends OSSOperation {
      */
     public PutObjectResult putObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
         return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
-                ? putObject_oss(putObjectRequest) : putObject_qiniu(putObjectRequest);
+                ? putOSSObject(putObjectRequest) : putQiniuObject(putObjectRequest);
     }
 
-    public PutObjectResult putObject_qiniu(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+    private QiniuBlock makeQiniuBlock(PutObjectRequest originalRequest, byte[] buffer, int bufferSize) {
+        String bucketName = originalRequest.getBucketName();
+        String key = originalRequest.getKey();
 
-        PutObjectResult result = new PutObjectResult();
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        String bucket = putObjectRequest.getBucketName();
-        String key = putObjectRequest.getKey();
-        String token = auth.uploadToken(bucket);
-        StreamUploader uploader = new StreamUploader(new Client(), token, key, putObjectRequest.getInputStream(), 
-                new StringMap(), Client.DefaultMime, new Configuration());
+        final InputStream is = new ByteArrayInputStream(buffer);
+        final ProgressListener isListener = new ProgressListener() {
+            @Override
+            public void progressChanged(ProgressEvent progressEvent) {
+                switch(progressEvent.getEventType()) {
+                    case TRANSFER_COMPLETED_EVENT:
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                    }
+                    default:
+                        break;
+                }
+            }
+        };
 
-        try {
-            Response rsp = uploader.upload();
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " rsp:" + rsp);
-            result.setRequestId(rsp.reqId);
-        } catch (Exception e) {
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.getMessage());
-            throw new OSSException(e.toString());
+        ProgressInputStream progressInputStream = new ProgressInputStream(is, isListener) {
+            @Override
+            protected void onEOF() {
+                publishProgress(getListener(), ProgressEventType.TRANSFER_COMPLETED_EVENT);
+            };
+        };
+
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setCommand(QiniuCommand.MAKE_BLOCK)
+            .setBucket(bucketName)
+            .setKey(key)
+            .setInputStream(progressInputStream)
+            .setInputSize(bufferSize)
+            .setOriginalRequest(originalRequest)
+            .build();
+
+        long crc = Crc32.bytes(buffer, 0, bufferSize);
+        QiniuBlock blockInfo = doQiniuOperation(request, makeQiniuBlockResponseParser, getEndpoint(), bucketName, key, true, null, null);
+        if (blockInfo.crc32 != crc) {
+            throw new OSSException("unmatched block crc32");
         }
 
-        return result;
+        return blockInfo;
     }
 
-    public PutObjectResult putObject_oss(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+    private QiniuFileResponse makeQiniuFile(PutObjectRequest originalRequest, long fiseSize, List<String> contexts) {
+        String bucketName = originalRequest.getBucketName();
+        String key = originalRequest.getKey();
+        byte[] contextBytes = StringUtils.join(contexts, ",").getBytes();
+        final InputStream is = new ByteArrayInputStream(contextBytes);
+        final ProgressListener isListener = new ProgressListener() {
+            @Override
+            public void progressChanged(ProgressEvent progressEvent) {
+                switch(progressEvent.getEventType()) {
+                    case TRANSFER_COMPLETED_EVENT:
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                    }
+                    default:
+                        break;
+                }
+            }
+        };
+
+        ProgressInputStream progressInputStream = new ProgressInputStream(is, isListener) {
+            @Override
+            protected void onEOF() {
+                publishProgress(getListener(), ProgressEventType.TRANSFER_COMPLETED_EVENT);
+            };
+        };
+
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put(QiniuRequestSigner.UPLOAD_FILE_SIZE, String.valueOf(fiseSize));
+
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setCommand(QiniuCommand.MAKE_FILE)
+            .setBucket(bucketName)
+            .setInputStream(progressInputStream)
+            .setInputSize(contextBytes.length)
+            .setHeaders(headers)
+            .setKey(key)
+            .setOriginalRequest(originalRequest)
+            .build();
+
+        return doQiniuOperation(request, makeQiniuFileResponseParser, getEndpoint(), bucketName, key, true, null, null);
+    }
+
+    public PutObjectResult putQiniuObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+        List<String> contexts = new ArrayList<String>();
+        InputStream fileIS = putObjectRequest.getInputStream();
+
+        long uploaded = 0;
+        int ret = 0;
+        long size = 0l;
+        boolean eof = false;
+        final byte[] blockBuffer = new byte[Constants.BLOCK_SIZE];
+        ProgressListener listener = putObjectRequest.getProgressListener();
+
+        while (size == 0 && !eof) {
+            int bufferIndex = 0;
+            int blockSize = 0;
+
+            //try to read the full BLOCK or until the EOF
+            while (ret != -1 && bufferIndex != blockBuffer.length) {
+                try {
+                    blockSize = blockBuffer.length - bufferIndex;
+                    ret = fileIS.read(blockBuffer, bufferIndex, blockSize);
+                } catch (IOException e) {
+                    try {
+                        fileIS.close();
+                    } catch (IOException _) {}
+                    throw new OSSException(e.getMessage());
+                }
+                if (ret != -1) {
+                    //continue to read more
+                    //advance bufferIndex
+                    bufferIndex += ret;
+                    if (ret == 0) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                } else {
+                    eof = true;
+                    //file EOF here, trigger outer while-loop finish
+                    size = uploaded + bufferIndex;
+                }
+            }
+
+            if (bufferIndex == 0) {
+                break;
+            }
+            QiniuBlock blockInfo = makeQiniuBlock(putObjectRequest, blockBuffer, bufferIndex);
+
+            if (eof) {
+                try {
+                    publishProgress(listener, ProgressEventType.TRANSFER_COMPLETED_EVENT);
+                } catch (RuntimeException e) {
+                    publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
+                    throw e;                    
+                }
+            } else {
+                try {
+                    publishProgress(listener, ProgressEventType.TRANSFER_PART_COMPLETED_EVENT);
+                } catch (RuntimeException e) {
+                    publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
+                    throw e;
+                }
+            }
+            contexts.add(blockInfo.ctx);
+            uploaded += bufferIndex;
+        }
+
+        try {
+            QiniuFileResponse fileRes = makeQiniuFile(putObjectRequest, size, contexts);
+            PutObjectResult result = new PutObjectResult();
+            result.setRequestId(fileRes.getRequestId());
+            return result;
+        } catch (Exception e) {
+            throw new OSSException("failed to upload file, error: " + e.getMessage());
+        }
+    }
+
+    public PutObjectResult putOSSObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(putObjectRequest, "putObjectRequest");
 

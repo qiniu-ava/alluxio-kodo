@@ -39,7 +39,6 @@ import com.aliyun.oss.common.parser.ResponseParseException;
 import com.aliyun.oss.common.parser.ResponseParser;
 import com.aliyun.oss.common.utils.DateUtil;
 import com.aliyun.oss.common.utils.HttpUtil;
-import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.model.AccessControlList;
 import com.aliyun.oss.model.AddBucketReplicationRequest.ReplicationAction;
 import com.aliyun.oss.model.AppendObjectResult;
@@ -94,6 +93,8 @@ import com.aliyun.oss.model.PartSummary;
 import com.aliyun.oss.model.Permission;
 import com.aliyun.oss.model.PushflowStatus;
 import com.aliyun.oss.model.PutObjectResult;
+import com.aliyun.oss.model.QiniuBlock;
+import com.aliyun.oss.model.QiniuFileResponse;
 import com.aliyun.oss.model.QiniuObjectListing;
 import com.aliyun.oss.model.QiniuObjectMetadata;
 import com.aliyun.oss.model.ReplicationRule;
@@ -183,6 +184,8 @@ public final class ResponseParsers {
 
     public static final GetQiniuObjectMetadataResponseParser getQiniuObjectMetadataResponseParser = new GetQiniuObjectMetadataResponseParser();
     public static final ListQiniuObjectsReponseParser listQiniuObjectsReponseParser = new ListQiniuObjectsReponseParser();
+    public static final MakeQiniuFileResponseParser makeQiniuFileResponseParser = new MakeQiniuFileResponseParser();
+    public static final MakeQiniuBlockResponseParser makeQiniuBlockResponseParser = new MakeQiniuBlockResponseParser();
     // public static final PutObjectReponseParser putObjectReponseParser = new PutObjectReponseParser();
     // public static final PutObjectProcessReponseParser putObjectProcessReponseParser = new PutObjectProcessReponseParser();
     // public static final AppendObjectResponseParser appendObjectResponseParser = new AppendObjectResponseParser();
@@ -574,6 +577,34 @@ public final class ResponseParsers {
             }
         }
 
+    }
+
+    public static final class MakeQiniuFileResponseParser implements ResponseParser<QiniuFileResponse> {
+
+        @Override
+        public QiniuFileResponse parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                QiniuFileResponse result = parseMakeQiniuFile(response.getContent());
+                result.setRequestId(response.getRequestId());
+                return result;
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
+    }
+
+    public static final class MakeQiniuBlockResponseParser implements ResponseParser<QiniuBlock> {
+
+        @Override
+        public QiniuBlock parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                QiniuBlock result = parseMakeQiniuBlock(response.getContent());
+                result.setRequestId(response.getRequestId());
+                return result;
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
     }
 
     public static final class ListQiniuObjectsReponseParser implements ResponseParser<ObjectListing> {
@@ -1027,6 +1058,30 @@ public final class ResponseParsers {
         SAXBuilder builder = new SAXBuilder();
         Document doc = builder.build(responseBody);
         return doc.getRootElement();
+    }
+
+    public static QiniuBlock parseMakeQiniuBlock(InputStream responseBody) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(responseBody, QiniuBlock.class);
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
+        }
+    }
+
+    public static QiniuFileResponse parseMakeQiniuFile(InputStream responseBody) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(responseBody, QiniuFileResponse.class);
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
+        }
     }
 
     /**

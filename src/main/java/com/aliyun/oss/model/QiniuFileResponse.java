@@ -17,14 +17,9 @@
  * under the License.
  */
 
-package com.aliyun.oss.common.comm;
+package com.aliyun.oss.model;
 
-public enum QiniuCommand {
-    GET_OBJ_DATA,
-    GET_OBJ_META,
-    LIST_OBJ,
-    POST_OBJ,
-    MAKE_BLOCK,
-    MAKE_FILE,
-    DELETE_OBJ
+public final class QiniuFileResponse extends GenericResult {
+    public String hash;
+    public String key;
 }
