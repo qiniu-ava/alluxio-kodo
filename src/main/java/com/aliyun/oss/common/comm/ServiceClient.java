@@ -40,6 +40,7 @@ import com.aliyun.oss.common.auth.RequestSigner;
 import com.aliyun.oss.common.utils.HttpUtil;
 import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.internal.OSSConstants;
+import com.aliyun.oss.internal.OSSHeaders;
 
 /**
  * Abstract service client that provides interfaces to access OSS services.
@@ -138,6 +139,8 @@ public abstract class ServiceClient {
 
                 // Step 4. Preprocess HTTP response.
                 handleResponse(response, context.getResponseHandlers());
+
+                response.setBucket(request.getBucket());
 
                 return response;
             } catch (ServiceException sex) {

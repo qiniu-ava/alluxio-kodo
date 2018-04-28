@@ -28,6 +28,11 @@ public class GenericRequest extends WebServiceRequest {
     private String bucketName;
     private String key;
 
+    @Override
+    public String toString() {
+        return String.format("{ bucketName: %s, key: %s}", bucketName, key);
+    }
+
     public GenericRequest() {
     }
 

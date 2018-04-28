@@ -182,4 +182,16 @@ public class OSSObjectSummary {
         this.storageClass = storageClass;
     }
 
+    @Override
+    public String toString() {
+        return String.format(
+            "{bucketName: %s, key: %s, eTag: %s, size: %s, storageClass: %s}",
+            bucketName,
+            key,
+            eTag,
+            String.valueOf(size),
+            storageClass
+        );
+    }
+
 }
