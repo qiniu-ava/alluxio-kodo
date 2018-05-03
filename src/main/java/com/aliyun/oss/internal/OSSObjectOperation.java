@@ -172,6 +172,8 @@ public class OSSObjectOperation extends OSSOperation {
             Response rsp = uploader.upload();
             LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " rsp:" + rsp);
             result.setRequestId(rsp.reqId);
+            rsp.close();
+            if (rsp.bodyStream() != null) rsp.bodyStream().close();
         } catch (Exception e) {
             LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.getMessage());
             throw new OSSException(e.toString());
@@ -274,6 +276,7 @@ public class OSSObjectOperation extends OSSOperation {
 
         Map<String, String> headers = new HashMap<String, String>();
         populateGetObjectRequestHeaders(getObjectRequest, headers);
+        headers.put("Connection", "close");
 
         Map<String, String> params = new HashMap<String, String>();
 
