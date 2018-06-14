@@ -418,6 +418,7 @@ public class OSSObjectOperation extends OSSOperation {
 
         Map<String, String> headers = new HashMap<String, String>();
         populateGetObjectRequestHeaders(getObjectRequest, headers);
+        headers.put("Connection", "close");
 
         Map<String, String> params = new HashMap<String, String>();
 
