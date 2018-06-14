@@ -421,20 +421,11 @@ public class OSSObjectOperation extends OSSOperation {
         populateGetObjectRequestHeaders(getObjectRequest, headers);
         headers.put("Connection", "close");
 
-        URI endpoint = getEndpoint();
-        // qiniu - speed up
-        String KODO_ORIGHOST = System.getenv("KODO_ORIGHOST");
-        if (KODO_ORIGHOST != null) {
-            headers.put(OSSHeaders.HOST, getEndpoint().getHost());
-            endpoint = URI.create(KODO_ORIGHOST);
-        }
-
         Map<String, String> params = new HashMap<String, String>();
 
         populateResponseHeaderParameters(params, getObjectRequest.getResponseHeaders());
         RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
-            //.setEndpoint(getEndpoint())
-            .setEndpoint(endpoint)
+            .setEndpoint(getEndpoint())
             .setCommand(QiniuCommand.GET_OBJ_DATA)
             .setBucket(bucketName)
             .setKey(key)
@@ -446,7 +437,7 @@ public class OSSObjectOperation extends OSSOperation {
         OSSObject ossObject = null;
         try {
             publishProgress(listener, ProgressEventType.TRANSFER_STARTED_EVENT);
-            ossObject = doQiniuOperation(request, new GetObjectResponseParser(bucketName, key), endpoint/*getEndpoint()*/, bucketName, key, true, null, null);
+            ossObject = doQiniuOperation(request, new GetObjectResponseParser(bucketName, key), getEndpoint(), bucketName, key, true, null, null);
             InputStream instream = ossObject.getObjectContent();
             ProgressInputStream progressInputStream = new ProgressInputStream(instream, listener) {
                 @Override
