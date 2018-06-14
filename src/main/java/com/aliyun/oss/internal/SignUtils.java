@@ -26,42 +26,42 @@ import static com.aliyun.oss.internal.RequestParameters.SECURITY_TOKEN;
 import static com.aliyun.oss.internal.RequestParameters.STYLE_NAME;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_ACL;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_APPEND;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_BUCKET_INFO;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_CNAME;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_COMP;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_CORS;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_DELETE;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_END_TIME;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_IMG;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LIFECYCLE;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LIVE;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LOCATION;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LOGGING;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REFERER;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STYLE;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UPLOADS;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_WEBSITE;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_TAGGING;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION_PROGRESS;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION_LOCATION;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_CNAME;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_BUCKET_INFO;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_COMP;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_OBJECTMETA;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_LIVE;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STATUS;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_VOD;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_START_TIME;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_END_TIME;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_PROCESS_CONF;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_PROCESS;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_SYMLINK;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_PROCESS_CONF;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_QOS;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REFERER;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION_LOCATION;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_REPLICATION_PROGRESS;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_RESTORE;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_START_TIME;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STAT;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STATUS;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_STYLE;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_SYMLINK;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_TAGGING;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_NAME;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_APPLICATION;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_IMAGE;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_IMAGE_DESC;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_APPLICATION;
 import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_LOG;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_RESTORE;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UDF_NAME;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_UPLOADS;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_VOD;
+import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_WEBSITE;
 import static com.aliyun.oss.internal.RequestParameters.UPLOAD_ID;
-import static com.aliyun.oss.internal.RequestParameters.SUBRESOURCE_QOS;
 import static com.aliyun.oss.model.ResponseHeaderOverrides.RESPONSE_HEADER_CACHE_CONTROL;
 import static com.aliyun.oss.model.ResponseHeaderOverrides.RESPONSE_HEADER_CONTENT_DISPOSITION;
 import static com.aliyun.oss.model.ResponseHeaderOverrides.RESPONSE_HEADER_CONTENT_ENCODING;
@@ -74,6 +74,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+
+import javax.xml.bind.DatatypeConverter;
 
 import com.aliyun.oss.common.comm.RequestMessage;
 import com.aliyun.oss.common.utils.HttpHeaders;
@@ -198,5 +200,15 @@ public class SignUtils {
         }
 
         return builder.toString();
+    }
+
+    private static String urlSafeBase64Encode(byte[] data) {
+        String encodedString = DatatypeConverter.printBase64Binary(data);
+		encodedString = encodedString.replace('+', '-').replace('/', '_');
+		return encodedString;
+    }
+
+    public static String encodeEntryURI(String bucket, String key) {
+        return urlSafeBase64Encode((bucket + ":" + key).getBytes());
     }
 }

@@ -20,13 +20,17 @@
 package com.aliyun.oss.model;
 
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.aliyun.oss.common.utils.DateUtil;
 import com.aliyun.oss.internal.OSSHeaders;
+
+import com.qiniu.util.StringUtils;
 
 /**
  * OSS Object's metadata. It has the user's custom metadata, as well as some
@@ -41,6 +45,23 @@ public class ObjectMetadata {
     private Map<String, Object> metadata = new HashMap<String, Object>();
 
     public static final String AES_256_SERVER_SIDE_ENCRYPTION = "AES256";
+
+    public String toString() {
+        List<String> userMetadataList = new ArrayList<String>();
+        for (String key : userMetadata.keySet()) {
+            userMetadataList.add(key + ": " + userMetadata.get(key));
+        }
+
+        List<String> metadataList = new ArrayList<String>();
+        for (String key: metadata.keySet()) {
+            metadataList.add(key + ": " + String.valueOf(metadata.get(key)));
+        }
+        return String.format(
+            "{ userMetadata: { %s }, metadata: { %s }}",
+            StringUtils.join(userMetadataList, ", ", null),
+            StringUtils.join(metadataList, ", ", null)
+        );
+    }
 
     /**
      * <p>

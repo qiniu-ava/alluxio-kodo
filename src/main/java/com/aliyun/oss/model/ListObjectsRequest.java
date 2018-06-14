@@ -54,6 +54,19 @@ public class ListObjectsRequest extends GenericRequest {
 
     private int tries; // _qiniu
 
+    @Override
+    public String toString() {
+        return String.format(
+            "bucket: %s, prefix: %s, key: %s, delimiter: %s, marker: %s, tries: %s",
+            getBucketName(),
+            getPrefix(),
+            getKey(),
+            getDelimiter(),
+            getMarker(),
+            String.valueOf(getTries())
+        );
+    }
+
     public ListObjectsRequest() {
         tries = 0;
     }

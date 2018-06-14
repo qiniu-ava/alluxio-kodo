@@ -56,8 +56,11 @@ import static com.aliyun.oss.internal.ResponseParsers.copyObjectResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.deleteObjectsResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectAclResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getObjectMetadataResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.getQiniuObjectMetadataResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSimplifiedObjectMetaResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.getSymbolicLinkResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.makeQiniuBlockResponseParser;
+import static com.aliyun.oss.internal.ResponseParsers.makeQiniuFileResponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectProcessReponseParser;
 import static com.aliyun.oss.internal.ResponseParsers.putObjectReponseParser;
 
@@ -68,14 +71,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 // import java.util.Objects;
 import java.util.zip.CheckedInputStream;
 
@@ -85,6 +87,7 @@ import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.ServiceException;
 import com.aliyun.oss.common.auth.CredentialsProvider;
+import com.aliyun.oss.common.comm.QiniuCommand;
 import com.aliyun.oss.common.comm.RequestMessage;
 import com.aliyun.oss.common.comm.ResponseHandler;
 import com.aliyun.oss.common.comm.ResponseMessage;
@@ -100,6 +103,7 @@ import com.aliyun.oss.common.utils.HttpUtil;
 import com.aliyun.oss.common.utils.IOUtils;
 import com.aliyun.oss.common.utils.LogUtils;
 import com.aliyun.oss.common.utils.RangeSpec;
+import com.aliyun.oss.event.ProgressEvent;
 import com.aliyun.oss.event.ProgressEventType;
 import com.aliyun.oss.event.ProgressInputStream;
 import com.aliyun.oss.event.ProgressListener;
@@ -123,23 +127,18 @@ import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.ProcessObjectRequest;
 import com.aliyun.oss.model.PutObjectRequest;
 import com.aliyun.oss.model.PutObjectResult;
+import com.aliyun.oss.model.QiniuBlock;
+import com.aliyun.oss.model.QiniuFileResponse;
 import com.aliyun.oss.model.RestoreObjectResult;
 import com.aliyun.oss.model.SetObjectAclRequest;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
-import com.qiniu.http.Client;
+import com.qiniu.common.Constants;
 import com.qiniu.http.Response;
 import com.qiniu.storage.BucketManager;
-import com.qiniu.storage.Configuration;
-import com.qiniu.storage.StreamUploader;
-import com.qiniu.storage.model.FileInfo;
-import com.qiniu.util.Auth;
-import com.qiniu.util.StringMap;
+import com.qiniu.util.Crc32;
+import com.qiniu.util.StringUtils;
 
-import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.client.HttpClient;
 
 /**
  * Object operation.
@@ -155,34 +154,178 @@ public class OSSObjectOperation extends OSSOperation {
      */
     public PutObjectResult putObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
         return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
-                ? putObject_oss(putObjectRequest) : putObject_qiniu(putObjectRequest);
+                ? putOSSObject(putObjectRequest) : putQiniuObject(putObjectRequest);
     }
 
-    public PutObjectResult putObject_qiniu(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+    private QiniuBlock makeQiniuBlock(PutObjectRequest originalRequest, byte[] buffer, int bufferSize) {
+        String bucketName = originalRequest.getBucketName();
+        String key = originalRequest.getKey();
 
-        PutObjectResult result = new PutObjectResult();
-        Auth auth = Auth.create(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
-        String bucket = putObjectRequest.getBucketName();
-        String key = putObjectRequest.getKey();
-        String token = auth.uploadToken(bucket);
-        StreamUploader uploader = new StreamUploader(new Client(), token, key, putObjectRequest.getInputStream(), 
-                new StringMap(), Client.DefaultMime, new Configuration());
+        final InputStream is = new ByteArrayInputStream(buffer);
+        final ProgressListener isListener = new ProgressListener() {
+            @Override
+            public void progressChanged(ProgressEvent progressEvent) {
+                switch(progressEvent.getEventType()) {
+                    case TRANSFER_COMPLETED_EVENT:
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                    }
+                    default:
+                        break;
+                }
+            }
+        };
 
-        try {
-            Response rsp = uploader.upload();
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " rsp:" + rsp);
-            result.setRequestId(rsp.reqId);
-            rsp.close();
-            if (rsp.bodyStream() != null) rsp.bodyStream().close();
-        } catch (Exception e) {
-            LogUtils.getLog().debug("==== putObject " + bucket + ":" + key + " exption:" + e.getMessage());
-            throw new OSSException(e.toString());
+        ProgressInputStream progressInputStream = new ProgressInputStream(is, isListener) {
+            @Override
+            protected void onEOF() {
+                publishProgress(getListener(), ProgressEventType.TRANSFER_COMPLETED_EVENT);
+            };
+        };
+
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setCommand(QiniuCommand.MAKE_BLOCK)
+            .setBucket(bucketName)
+            .setKey(key)
+            .setInputStream(progressInputStream)
+            .setInputSize(bufferSize)
+            .setOriginalRequest(originalRequest)
+            .build();
+
+        long crc = Crc32.bytes(buffer, 0, bufferSize);
+        QiniuBlock blockInfo = doQiniuOperation(request, makeQiniuBlockResponseParser, getEndpoint(), bucketName, key, true, null, null);
+        if (blockInfo.crc32 != crc) {
+            throw new OSSException("unmatched block crc32");
         }
 
-        return result;
+        return blockInfo;
     }
 
-    public PutObjectResult putObject_oss(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+    private QiniuFileResponse makeQiniuFile(PutObjectRequest originalRequest, long fiseSize, List<String> contexts) {
+        String bucketName = originalRequest.getBucketName();
+        String key = originalRequest.getKey();
+        byte[] contextBytes = StringUtils.join(contexts, ",").getBytes();
+        final InputStream is = new ByteArrayInputStream(contextBytes);
+        final ProgressListener isListener = new ProgressListener() {
+            @Override
+            public void progressChanged(ProgressEvent progressEvent) {
+                switch(progressEvent.getEventType()) {
+                    case TRANSFER_COMPLETED_EVENT:
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                    }
+                    default:
+                        break;
+                }
+            }
+        };
+
+        ProgressInputStream progressInputStream = new ProgressInputStream(is, isListener) {
+            @Override
+            protected void onEOF() {
+                publishProgress(getListener(), ProgressEventType.TRANSFER_COMPLETED_EVENT);
+            };
+        };
+
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put(QiniuRequestSigner.UPLOAD_FILE_SIZE, String.valueOf(fiseSize));
+
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setCommand(QiniuCommand.MAKE_FILE)
+            .setBucket(bucketName)
+            .setInputStream(progressInputStream)
+            .setInputSize(contextBytes.length)
+            .setHeaders(headers)
+            .setKey(key)
+            .setOriginalRequest(originalRequest)
+            .build();
+
+        return doQiniuOperation(request, makeQiniuFileResponseParser, getEndpoint(), bucketName, key, true, null, null);
+    }
+
+    public PutObjectResult putQiniuObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
+        List<String> contexts = new ArrayList<String>();
+        InputStream fileIS = putObjectRequest.getInputStream();
+
+        long uploaded = 0;
+        int ret = 0;
+        long size = 0l;
+        boolean eof = false;
+        final byte[] blockBuffer = new byte[Constants.BLOCK_SIZE];
+        ProgressListener listener = putObjectRequest.getProgressListener();
+
+        while (size == 0 && !eof) {
+            int bufferIndex = 0;
+            int blockSize = 0;
+
+            //try to read the full BLOCK or until the EOF
+            while (ret != -1 && bufferIndex != blockBuffer.length) {
+                try {
+                    blockSize = blockBuffer.length - bufferIndex;
+                    ret = fileIS.read(blockBuffer, bufferIndex, blockSize);
+                } catch (IOException e) {
+                    try {
+                        fileIS.close();
+                    } catch (IOException _) {}
+                    throw new OSSException(e.getMessage());
+                }
+                if (ret != -1) {
+                    //continue to read more
+                    //advance bufferIndex
+                    bufferIndex += ret;
+                    if (ret == 0) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                } else {
+                    eof = true;
+                    //file EOF here, trigger outer while-loop finish
+                    size = uploaded + bufferIndex;
+                }
+            }
+
+            if (bufferIndex == 0) {
+                break;
+            }
+            QiniuBlock blockInfo = makeQiniuBlock(putObjectRequest, blockBuffer, bufferIndex);
+
+            if (eof) {
+                try {
+                    publishProgress(listener, ProgressEventType.TRANSFER_COMPLETED_EVENT);
+                } catch (RuntimeException e) {
+                    publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
+                    throw e;                    
+                }
+            } else {
+                try {
+                    publishProgress(listener, ProgressEventType.TRANSFER_PART_COMPLETED_EVENT);
+                } catch (RuntimeException e) {
+                    publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
+                    throw e;
+                }
+            }
+            contexts.add(blockInfo.ctx);
+            uploaded += bufferIndex;
+        }
+
+        try {
+            QiniuFileResponse fileRes = makeQiniuFile(putObjectRequest, size, contexts);
+            PutObjectResult result = new PutObjectResult();
+            result.setRequestId(fileRes.getRequestId());
+            return result;
+        } catch (Exception e) {
+            throw new OSSException("failed to upload file, error: " + e.getMessage());
+        }
+    }
+
+    public PutObjectResult putOSSObject(PutObjectRequest putObjectRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(putObjectRequest, "putObjectRequest");
 
@@ -278,12 +421,21 @@ public class OSSObjectOperation extends OSSOperation {
         populateGetObjectRequestHeaders(getObjectRequest, headers);
         headers.put("Connection", "close");
 
+        URI endpoint = getEndpoint();
+        // qiniu - speed up
+        String KODO_ORIGHOST = System.getenv("KODO_ORIGHOST");
+        if (KODO_ORIGHOST != null) {
+            headers.put(OSSHeaders.HOST, getEndpoint().getHost());
+            endpoint = URI.create(KODO_ORIGHOST);
+        }
+
         Map<String, String> params = new HashMap<String, String>();
 
         populateResponseHeaderParameters(params, getObjectRequest.getResponseHeaders());
-        RequestMessage request = new OSSRequestMessageBuilder(getInnerClient())
-            .setEndpoint(getEndpoint())
-            .setMethod(HttpMethod.GET)
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            //.setEndpoint(getEndpoint())
+            .setEndpoint(endpoint)
+            .setCommand(QiniuCommand.GET_OBJ_DATA)
             .setBucket(bucketName)
             .setKey(key)
             .setHeaders(headers)
@@ -294,9 +446,7 @@ public class OSSObjectOperation extends OSSOperation {
         OSSObject ossObject = null;
         try {
             publishProgress(listener, ProgressEventType.TRANSFER_STARTED_EVENT);
-            // doOperation(RequestMessage request, ResponseParser<T> parser, String endPoint, String bucketName, String key,
-            // boolean keepResponseOpen, List<RequestHandler> requestHandlers, List<ResponseHandler> reponseHandlers)
-            ossObject = doOperation(request, new GetObjectResponseParser(bucketName, key), getEndpoint(), bucketName, key, true, null, null);
+            ossObject = doQiniuOperation(request, new GetObjectResponseParser(bucketName, key), endpoint/*getEndpoint()*/, bucketName, key, true, null, null);
             InputStream instream = ossObject.getObjectContent();
             ProgressInputStream progressInputStream = new ProgressInputStream(instream, listener) {
                 @Override
@@ -443,13 +593,11 @@ public class OSSObjectOperation extends OSSOperation {
     public ObjectMetadata getObjectMetadata(GenericRequest genericRequest) throws OSSException, ClientException {
 
         return (getEndpoint().toString().indexOf("aliyuncs.com") >= 0) 
-                ? getObjectMetadata_oss(genericRequest) : getObjectMetadata_qiniu(genericRequest);
+                ? getOSSObjectMetadata(genericRequest) : getQiniuObjectMetadata(genericRequest);
     }
 
-    static long cc = 0;
-    public ObjectMetadata getObjectMetadata_qiniu(GenericRequest genericRequest) throws OSSException, ClientException {
-
-        BucketManager mgr = OSSBucketOperation.getBucketManager(credsProvider.getCredentials().getAccessKeyId(), credsProvider.getCredentials().getSecretAccessKey());
+    public ObjectMetadata getQiniuObjectMetadata(GenericRequest genericRequest) throws OSSException, ClientException {
+        LogUtils.getLog().debug("trying to get qiniu object metadata, " + genericRequest.toString());
         assertParameterNotNull(genericRequest, "genericRequest");
         String bucketName = genericRequest.getBucketName();
         String key = genericRequest.getKey();
@@ -459,24 +607,30 @@ public class OSSObjectOperation extends OSSOperation {
         ensureBucketNameValid(bucketName);
         ensureObjectKeyValid(key);
 
-        try {
-            FileInfo info = mgr.stat(bucketName, key);
-            ObjectMetadata md = new ObjectMetadata();
-            if (info != null) {
-                md.setHeader("key", info.key);
-                md.setHeader(OSSHeaders.CONTENT_LENGTH, info.fsize);
-                md.setHeader(OSSHeaders.LAST_MODIFIED, new Date(info.putTime));
-                md.setHeader(OSSHeaders.ETAG, info.hash);
+        RequestMessage request = new QiniuRequestMessageBuilder(getInnerClient())
+            .setEndpoint(getEndpoint())
+            .setCommand(QiniuCommand.GET_OBJ_META)
+            .setBucket(bucketName)
+            .setKey(key)
+            .setOriginalRequest(genericRequest)
+            .build();
+
+        List<ResponseHandler> reponseHandlers = new ArrayList<ResponseHandler>();
+        reponseHandlers.add(new ResponseHandler() {
+            @Override
+            public void handle(ResponseMessage response) throws ServiceException, ClientException {
+                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND) {
+                    safeCloseResponse(response);
+                    throw ExceptionFactory.createOSSException(
+                            response.getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_KEY,
+                            OSS_RESOURCE_MANAGER.getString("NoSuchKey"));
+                }
             }
-            return md;
-        } catch (Exception e) {
-            // getLog().warn("==== getObjectMetadata_qiniu exception: " + e.toString());
-            // throw new OSSException(e.toString());
-            return null;
-        }
+        });
+        return doQiniuOperation(request, getQiniuObjectMetadataResponseParser, getEndpoint(), bucketName, key, true, null, reponseHandlers);
     }
 
-    public ObjectMetadata getObjectMetadata_oss(GenericRequest genericRequest) throws OSSException, ClientException {
+    public ObjectMetadata getOSSObjectMetadata(GenericRequest genericRequest) throws OSSException, ClientException {
 
         assertParameterNotNull(genericRequest, "genericRequest");
 

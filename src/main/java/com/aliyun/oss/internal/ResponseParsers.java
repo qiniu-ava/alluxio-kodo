@@ -23,6 +23,7 @@ import static com.aliyun.oss.common.utils.CodingUtils.isNullOrEmpty;
 import static com.aliyun.oss.internal.OSSUtils.safeCloseResponse;
 import static com.aliyun.oss.internal.OSSUtils.trimQuotes;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.text.ParseException;
@@ -32,11 +33,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.CheckedInputStream;
-
-import org.jdom.Document;
-import org.jdom.Element;
-import org.jdom.input.JDOMParseException;
-import org.jdom.input.SAXBuilder;
 
 import com.aliyun.oss.common.comm.ResponseMessage;
 import com.aliyun.oss.common.parser.ResponseParseException;
@@ -65,33 +61,28 @@ import com.aliyun.oss.model.CreateLiveChannelResult;
 import com.aliyun.oss.model.DeleteObjectsResult;
 import com.aliyun.oss.model.GenericResult;
 import com.aliyun.oss.model.GetBucketImageResult;
+import com.aliyun.oss.model.GetImageStyleResult;
+import com.aliyun.oss.model.GroupGrantee;
 import com.aliyun.oss.model.ImageProcess;
+import com.aliyun.oss.model.InitiateMultipartUploadResult;
+import com.aliyun.oss.model.InstanceFlavor;
+import com.aliyun.oss.model.LifecycleRule;
+import com.aliyun.oss.model.LifecycleRule.RuleStatus;
+import com.aliyun.oss.model.LifecycleRule.StorageTransition;
 import com.aliyun.oss.model.LiveChannel;
 import com.aliyun.oss.model.LiveChannelInfo;
 import com.aliyun.oss.model.LiveChannelListing;
 import com.aliyun.oss.model.LiveChannelStat;
-import com.aliyun.oss.model.LiveRecord;
 import com.aliyun.oss.model.LiveChannelStat.AudioStat;
 import com.aliyun.oss.model.LiveChannelStat.VideoStat;
 import com.aliyun.oss.model.LiveChannelStatus;
 import com.aliyun.oss.model.LiveChannelTarget;
-import com.aliyun.oss.model.OSSSymlink;
-import com.aliyun.oss.model.ReplicationRule;
-import com.aliyun.oss.model.GetImageStyleResult;
-import com.aliyun.oss.model.GroupGrantee;
-import com.aliyun.oss.model.InitiateMultipartUploadResult;
-import com.aliyun.oss.model.InstanceFlavor;
-import com.aliyun.oss.model.LifecycleRule;
-import com.aliyun.oss.model.ReplicationStatus;
-import com.aliyun.oss.model.RestoreObjectResult;
-import com.aliyun.oss.model.RoutingRule;
-import com.aliyun.oss.model.StorageClass;
-import com.aliyun.oss.model.LifecycleRule.RuleStatus;
-import com.aliyun.oss.model.LifecycleRule.StorageTransition;
+import com.aliyun.oss.model.LiveRecord;
 import com.aliyun.oss.model.MultipartUpload;
 import com.aliyun.oss.model.MultipartUploadListing;
 import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.OSSObjectSummary;
+import com.aliyun.oss.model.OSSSymlink;
 import com.aliyun.oss.model.ObjectAcl;
 import com.aliyun.oss.model.ObjectListing;
 import com.aliyun.oss.model.ObjectMetadata;
@@ -100,10 +91,19 @@ import com.aliyun.oss.model.Owner;
 import com.aliyun.oss.model.PartListing;
 import com.aliyun.oss.model.PartSummary;
 import com.aliyun.oss.model.Permission;
-import com.aliyun.oss.model.PutObjectResult;
 import com.aliyun.oss.model.PushflowStatus;
+import com.aliyun.oss.model.PutObjectResult;
+import com.aliyun.oss.model.QiniuBlock;
+import com.aliyun.oss.model.QiniuFileResponse;
+import com.aliyun.oss.model.QiniuObjectListing;
+import com.aliyun.oss.model.QiniuObjectMetadata;
+import com.aliyun.oss.model.ReplicationRule;
+import com.aliyun.oss.model.ReplicationStatus;
+import com.aliyun.oss.model.RestoreObjectResult;
+import com.aliyun.oss.model.RoutingRule;
 import com.aliyun.oss.model.SetBucketCORSRequest.CORSRule;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
+import com.aliyun.oss.model.StorageClass;
 import com.aliyun.oss.model.Style;
 import com.aliyun.oss.model.TagSet;
 import com.aliyun.oss.model.UdfApplicationInfo;
@@ -112,6 +112,14 @@ import com.aliyun.oss.model.UdfImageInfo;
 import com.aliyun.oss.model.UdfInfo;
 import com.aliyun.oss.model.UploadPartCopyResult;
 import com.aliyun.oss.model.UserQos;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.JDOMParseException;
+import org.jdom.input.SAXBuilder;
 
 /*
  * A collection of parsers that parse HTTP reponses into corresponding human-readable results.
@@ -171,6 +179,18 @@ public final class ResponseParsers {
     public static final GetUdfImageInfoResponseParser getUdfImageInfoResponseParser = new GetUdfImageInfoResponseParser();
     public static final GetUdfApplicationInfoResponseParser getUdfApplicationInfoResponseParser = new GetUdfApplicationInfoResponseParser();
     public static final ListUdfApplicationInfoResponseParser listUdfApplicationInfoResponseParser = new ListUdfApplicationInfoResponseParser();
+
+
+
+    public static final GetQiniuObjectMetadataResponseParser getQiniuObjectMetadataResponseParser = new GetQiniuObjectMetadataResponseParser();
+    public static final ListQiniuObjectsReponseParser listQiniuObjectsReponseParser = new ListQiniuObjectsReponseParser();
+    public static final MakeQiniuFileResponseParser makeQiniuFileResponseParser = new MakeQiniuFileResponseParser();
+    public static final MakeQiniuBlockResponseParser makeQiniuBlockResponseParser = new MakeQiniuBlockResponseParser();
+    // public static final PutObjectReponseParser putObjectReponseParser = new PutObjectReponseParser();
+    // public static final PutObjectProcessReponseParser putObjectProcessReponseParser = new PutObjectProcessReponseParser();
+    // public static final AppendObjectResponseParser appendObjectResponseParser = new AppendObjectResponseParser();
+    // public static final CopyObjectResponseParser copyObjectResponseParser = new CopyObjectResponseParser();
+    // public static final DeleteObjectsResponseParser deleteObjectsResponseParser = new DeleteObjectsResponseParser();
 
     public static final class EmptyResponseParser implements ResponseParser<ResponseMessage> {
 
@@ -559,6 +579,49 @@ public final class ResponseParsers {
 
     }
 
+    public static final class MakeQiniuFileResponseParser implements ResponseParser<QiniuFileResponse> {
+
+        @Override
+        public QiniuFileResponse parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                QiniuFileResponse result = parseMakeQiniuFile(response.getContent());
+                result.setRequestId(response.getRequestId());
+                return result;
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
+    }
+
+    public static final class MakeQiniuBlockResponseParser implements ResponseParser<QiniuBlock> {
+
+        @Override
+        public QiniuBlock parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                QiniuBlock result = parseMakeQiniuBlock(response.getContent());
+                result.setRequestId(response.getRequestId());
+                return result;
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
+    }
+
+    public static final class ListQiniuObjectsReponseParser implements ResponseParser<ObjectListing> {
+
+        @Override
+        public ObjectListing parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                ObjectListing result = parseQiniuListObjects(response.getContent(), response.getBucket());
+                result.setRequestId(response.getRequestId());
+                return result;
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
+
+    }
+
     public static final class PutObjectReponseParser implements ResponseParser<PutObjectResult> {
 
         @Override
@@ -727,6 +790,19 @@ public final class ResponseParsers {
         public ObjectMetadata parse(ResponseMessage response) throws ResponseParseException {
             try {
                 return parseObjectMetadata(response.getHeaders());
+            } finally {
+                safeCloseResponse(response);
+            }
+        }
+
+    }
+
+    public static final class GetQiniuObjectMetadataResponseParser implements ResponseParser<ObjectMetadata> {
+
+        @Override
+        public ObjectMetadata parse(ResponseMessage response) throws ResponseParseException {
+            try {
+                return parseQiniuObjectMetadata(response.getContent());
             } finally {
                 safeCloseResponse(response);
             }
@@ -982,6 +1058,47 @@ public final class ResponseParsers {
         SAXBuilder builder = new SAXBuilder();
         Document doc = builder.build(responseBody);
         return doc.getRootElement();
+    }
+
+    public static QiniuBlock parseMakeQiniuBlock(InputStream responseBody) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(responseBody, QiniuBlock.class);
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
+        }
+    }
+
+    public static QiniuFileResponse parseMakeQiniuFile(InputStream responseBody) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(responseBody, QiniuFileResponse.class);
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
+        }
+    }
+
+    /**
+     * Unmarshall list objects response body to object listing.
+     */
+    @SuppressWarnings("unchecked")
+    public static ObjectListing parseQiniuListObjects(InputStream responseBody, String bucket) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            QiniuObjectListing qiniuObjects = mapper.readValue(responseBody, QiniuObjectListing.class);
+            return qiniuObjects.toObjectListing(bucket);
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
+        }
     }
 
     /**
@@ -1534,6 +1651,19 @@ public final class ResponseParsers {
             return objectMetadata;
         } catch (Exception e) {
             throw new ResponseParseException(e.getMessage(), e);
+        }
+    }
+
+    public static ObjectMetadata parseQiniuObjectMetadata(InputStream responseBody) throws ResponseParseException {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            QiniuObjectMetadata qiniuObjects = mapper.readValue(responseBody, QiniuObjectMetadata.class);
+            return qiniuObjects.toObjectMetadata();
+        } catch (JsonMappingException e) {
+            throw new ResponseParseException(e.getMessage());
+        } catch (IOException e) {
+            throw new ResponseParseException();
         }
     }
 

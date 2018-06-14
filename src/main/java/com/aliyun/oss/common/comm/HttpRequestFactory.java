@@ -89,7 +89,7 @@ class HttpRequestFactory {
 
         for (Entry<String, String> entry : request.getHeaders().entrySet()) {
             if (entry.getKey().equalsIgnoreCase(HttpHeaders.CONTENT_LENGTH)
-                    || entry.getKey().equalsIgnoreCase(HttpHeaders.HOST)) {
+                    /*|| entry.getKey().equalsIgnoreCase(HttpHeaders.HOST)*/) { //qiniu - speedup need Host header
                 continue;
             }
 
