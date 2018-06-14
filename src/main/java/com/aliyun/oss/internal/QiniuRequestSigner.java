@@ -38,7 +38,6 @@ import com.aliyun.oss.common.comm.RequestMessage;
 import com.aliyun.oss.common.utils.LogUtils;
 import com.qiniu.util.Auth;
 import com.qiniu.util.UrlSafeBase64;
-//import static com.aliyun.oss.common.utils.LogUtils.getLog;
 
 public class QiniuRequestSigner implements RequestSigner {
     static private String DEFAULT_IO_DOMAIN = "";
