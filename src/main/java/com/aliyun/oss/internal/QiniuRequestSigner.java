@@ -115,6 +115,9 @@ public class QiniuRequestSigner implements RequestSigner {
                 url = new URL("http", QiniuRequestSigner.DEFAULT_IO_DOMAIN, url.getFile());
                 request.setAbsoluteUrl(url);
                 Map<String, String> headers = request.getHeaders();
+                if (headers == null) {
+                    headers = new HashMap<String, String>();
+                }
                 headers.put(OSSHeaders.HOST, this.endPoint.getHost());
                 request.setHeaders(headers);
                 request.setParameters(null);
