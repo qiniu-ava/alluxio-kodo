@@ -35,11 +35,12 @@ import com.aliyun.oss.common.auth.Credentials;
 import com.aliyun.oss.common.auth.RequestSigner;
 import com.aliyun.oss.common.comm.QiniuCommand;
 import com.aliyun.oss.common.comm.RequestMessage;
+import com.aliyun.oss.common.utils.LogUtils;
 import com.qiniu.util.Auth;
 import com.qiniu.util.UrlSafeBase64;
 
 public class QiniuRequestSigner implements RequestSigner {
-    static private String DEFAULT_IO_DOMAIN = "iovip.qbox.me";
+    static private String DEFAULT_IO_DOMAIN = "";
     static private String DEFAULT_RS_DOMAIN = "rs.qiniu.com";
     // static private String DEFAULT_RS_DOMAIN = "rs-z0.qiniu.com";
     static private String DEFAULT_RSF_DOMAIN = "rsf-z0.qiniu.com";
@@ -64,6 +65,14 @@ public class QiniuRequestSigner implements RequestSigner {
         this.bucket = bucket;
         this.key = key;
         this.creds = creds;
+
+        if (QiniuRequestSigner.DEFAULT_IO_DOMAIN == null) {
+            if (System.getenv("KODO_ORIGHOST") == null || System.getenv("KODO_ORIGHOST").equals("")) {
+                QiniuRequestSigner.DEFAULT_IO_DOMAIN = "iovip.qbox.me";
+            } else {
+                QiniuRequestSigner.DEFAULT_IO_DOMAIN = System.getenv("KODO_ORIGHOST");
+            }
+        }
     }
 
     @Override
@@ -100,13 +109,24 @@ public class QiniuRequestSigner implements RequestSigner {
         if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
             Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
             try {
-                URL originURL = new URL("http", this.endPoint.toString(), this.key);
+                URL originURL = new URL("http://" + this.endPoint.getHost() + "/" + this.key);
                 String privateUrl = auth.privateDownloadUrl(originURL.toString());
                 URL url = new URL(privateUrl);
                 url = new URL("http", QiniuRequestSigner.DEFAULT_IO_DOMAIN, url.getFile());
                 request.setAbsoluteUrl(url);
-                request.addHeader(OSSHeaders.HOST, this.endPoint.toString());
-            } catch (MalformedURLException err) {}
+                Map<String, String> headers = new HashMap<String, String>();
+                headers.put(OSSHeaders.HOST, this.endPoint.getHost());
+                request.setHeaders(headers);
+                request.setParameters(null);
+                request.setEndpoint(new URI("http://" + this.endPoint.getHost()));
+                request.setResourcePath(url.getFile());
+                request.setContent(null);
+                request.setMethod(HttpMethod.GET);
+            } catch (MalformedURLException err) {
+                LogUtils.getLog().warn("load file from " + this.key + " failed, error: " + err.getMessage() + ", " + err.toString());
+            } catch (URISyntaxException err) {
+                LogUtils.getLog().warn("load file from " + this.key + " failed, error: " + err.getMessage() + ", " + err.toString());
+            }
         }
     }
 
