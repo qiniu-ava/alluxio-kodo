@@ -144,6 +144,8 @@ import org.apache.http.HttpStatus;
  */
 public class OSSObjectOperation extends OSSOperation {
 
+    final static int UPLOAD_BLOCK_SIZE = 512 * 1024 * 1024;
+
     public OSSObjectOperation(ServiceClient client, CredentialsProvider credsProvider) {
         super(client, credsProvider);
     }
@@ -254,7 +256,7 @@ public class OSSObjectOperation extends OSSOperation {
         int ret = 0;
         long size = 0l;
         boolean eof = false;
-        final byte[] blockBuffer = new byte[Constants.BLOCK_SIZE];
+        final byte[] blockBuffer = new byte[UPLOAD_BLOCK_SIZE];
         ProgressListener listener = putObjectRequest.getProgressListener();
 
         while (size == 0 && !eof) {
