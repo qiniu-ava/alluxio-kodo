@@ -40,19 +40,25 @@ import com.qiniu.util.Auth;
 import com.qiniu.util.UrlSafeBase64;
 
 public class QiniuRequestSigner implements RequestSigner {
-    static private String DEFAULT_IO_DOMAIN = "";
+    static final private String DEFAULT_IO_DOMAIN;
+    static final private String DEFAULT_UP_DOMAIN;
     static private String DEFAULT_RS_DOMAIN = "rs.qiniu.com";
     // static private String DEFAULT_RS_DOMAIN = "rs-z0.qiniu.com";
     static private String DEFAULT_RSF_DOMAIN = "rsf-z0.qiniu.com";
-    static private String DEFAULT_UP_DOMAIN = "up.qiniu.com";
     static private String REQUEST_CONTENT_TYPE = "application/x-www-form-urlencoded";
     static private String OCTET_STREAM_CONTENT_TYPE = "application/octet-stream";
 
     static public String UPLOAD_FILE_SIZE = "upload-file-size";
 
     static private int UPLOAD_TOKEN_DEUFAULT_EXPIRE_TIME = 3600 * 10;
-    private QiniuCommand command;
+    static {
+        String ioHost = System.getenv("KODO_IO_ORIGHOST");
+        String upHost = System.getenv("KODO_UP_ORIGHOST");
+        DEFAULT_IO_DOMAIN = (ioHost == null || ioHost.equals("")) ? "iovip.qbox.me" : ioHost;
+        DEFAULT_UP_DOMAIN = (upHost == null || upHost.equals("")) ? "up.qiniu.com" : upHost;
+    }
 
+    private QiniuCommand command;
     /* Note that resource path should not have been url-encoded. */
     private URI endPoint;
     private String bucket;
@@ -65,14 +71,6 @@ public class QiniuRequestSigner implements RequestSigner {
         this.bucket = bucket;
         this.key = key;
         this.creds = creds;
-
-        if (QiniuRequestSigner.DEFAULT_IO_DOMAIN == null) {
-            if (System.getenv("KODO_ORIGHOST") == null || System.getenv("KODO_ORIGHOST").equals("")) {
-                QiniuRequestSigner.DEFAULT_IO_DOMAIN = "iovip.qbox.me";
-            } else {
-                QiniuRequestSigner.DEFAULT_IO_DOMAIN = System.getenv("KODO_ORIGHOST");
-            }
-        }
     }
 
     @Override
