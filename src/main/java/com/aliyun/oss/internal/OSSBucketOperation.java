@@ -83,6 +83,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.aliyun.oss.MarkerCache;
 import com.aliyun.oss.ClientException;
 import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSSErrorCode;
@@ -424,6 +425,8 @@ public class OSSBucketOperation extends OSSOperation {
             assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
             String bucketName = listObjectsRequest.getBucketName();
             String prefix = listObjectsRequest.getPrefix();
+            // set first marker
+            listObjectsRequest.setMarker(MarkerCache.getMarker(bucketName + prefix));
 
             if (prefix == null) {
                 prefix = "";
@@ -448,7 +451,10 @@ public class OSSBucketOperation extends OSSOperation {
 
             listObjectsRequest.incTries();
             listObjectsRequest.setMarker(result.getMarker());
-            if (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES) {
+            //cache marker
+            MarkerCache.setMarker(bucketName + prefix, result.getMarker());
+            LogUtils.getLog().debug("prefix:" + bucketName + prefix + ", marker:" + MarkerCache.getMarker(bucketName + prefix));
+            if (listObjectsRequest.getMarker().isEmpty() || (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES)) {
                 result.setTruncated(false); // stop here
             }
 

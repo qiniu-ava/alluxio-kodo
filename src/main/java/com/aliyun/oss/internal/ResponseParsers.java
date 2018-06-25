@@ -25,6 +25,8 @@ import static com.aliyun.oss.internal.OSSUtils.trimQuotes;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -95,7 +97,6 @@ import com.aliyun.oss.model.PushflowStatus;
 import com.aliyun.oss.model.PutObjectResult;
 import com.aliyun.oss.model.QiniuBlock;
 import com.aliyun.oss.model.QiniuFileResponse;
-import com.aliyun.oss.model.QiniuObjectListing;
 import com.aliyun.oss.model.QiniuObjectMetadata;
 import com.aliyun.oss.model.ReplicationRule;
 import com.aliyun.oss.model.ReplicationStatus;
@@ -115,6 +116,8 @@ import com.aliyun.oss.model.UserQos;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode; 
 
 import org.jdom.Document;
 import org.jdom.Element;
@@ -1092,9 +1095,41 @@ public final class ResponseParsers {
         try {
             ObjectMapper mapper = new ObjectMapper();
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            QiniuObjectListing qiniuObjects = mapper.readValue(responseBody, QiniuObjectListing.class);
-            return qiniuObjects.toObjectListing(bucket);
-        } catch (JsonMappingException e) {
+            // get info from responseBody
+            String line;
+            String marker = "";
+            List<String> commonPrefixes = new ArrayList<String>();
+            List<QiniuObjectMetadata> items = new ArrayList<QiniuObjectMetadata>();
+            BufferedReader br = new BufferedReader(new InputStreamReader(responseBody));
+            while ((line = br.readLine()) != null) {
+                JsonNode rootNode = mapper.readTree(line);
+                marker = rootNode.path("marker").asText();
+                if (!rootNode.path("dir").asText().isEmpty()) 
+                    commonPrefixes.add(rootNode.path("dir").asText());
+                if (!rootNode.path("item").isNull())
+                    items.add(mapper.readValue(rootNode.path("item").toString(), QiniuObjectMetadata.class));
+            }
+            marker = (marker != null && !marker.equals("null")) ? marker : "";
+            ObjectListing objectListing = new ObjectListing();
+            if (commonPrefixes != null) {
+                for (String prefix: commonPrefixes) {
+                    objectListing.addCommonPrefix(prefix);
+                }
+            }
+            if (items != null) {
+                for (QiniuObjectMetadata item: items) {
+                    OSSObjectSummary sm = item.toObjectSummary();
+                    sm.setBucketName(bucket);
+                    objectListing.addObjectSummary(sm);
+                }
+            }
+            objectListing.setBucketName(bucket);
+            objectListing.setTruncated(!marker.equals(""));
+            objectListing.setEncodingType("");
+            objectListing.setNextMarker(marker);
+            objectListing.setMarker(marker);
+            return objectListing;
+        } catch (JsonProcessingException e){
             throw new ResponseParseException(e.getMessage());
         } catch (IOException e) {
             throw new ResponseParseException();

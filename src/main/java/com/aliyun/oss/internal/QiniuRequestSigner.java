@@ -150,7 +150,7 @@ public class QiniuRequestSigner implements RequestSigner {
                 try {
                     Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
                     String path = String.format(
-                        "list?bucket=%s&prefix=%s&limit=%s&marker=%s&delimiter=%s",
+                        "v2/list?bucket=%s&prefix=%s&limit=%s&marker=%s&delimiter=%s",
                         bucket,
                         prefix,
                         limit,

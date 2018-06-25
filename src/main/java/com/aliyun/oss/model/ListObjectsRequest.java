@@ -26,7 +26,7 @@ import com.aliyun.oss.internal.OSSUtils;
  */
 public class ListObjectsRequest extends GenericRequest {
 
-    public static final int MAX_TRIES = 5; // 5000 at most
+    public static final int MAX_TRIES = 5; // MAX_TRIES for each request
     private static final int MAX_RETURNED_KEYS_LIMIT = 1000;
 
     // The prefix filter----objects returned whose key must start with this
