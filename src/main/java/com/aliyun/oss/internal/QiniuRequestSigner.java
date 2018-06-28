@@ -119,7 +119,7 @@ public class QiniuRequestSigner implements RequestSigner {
                 headers.put(OSSHeaders.HOST, this.endPoint.getHost());
                 request.setHeaders(headers);
                 request.setParameters(null);
-                request.setEndpoint(new URI("http://" + this.endPoint.getHost()));
+                request.setEndpoint(new URI("http://" + QiniuRequestSigner.DEFAULT_IO_DOMAIN));
                 request.setResourcePath(url.getFile());
                 request.setContent(null);
                 request.setMethod(HttpMethod.GET);
