@@ -131,7 +131,6 @@ import com.aliyun.oss.model.QiniuFileResponse;
 import com.aliyun.oss.model.RestoreObjectResult;
 import com.aliyun.oss.model.SetObjectAclRequest;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
-import com.qiniu.common.Constants;
 import com.qiniu.http.Response;
 import com.qiniu.storage.BucketManager;
 import com.qiniu.util.Crc32;
@@ -144,7 +143,7 @@ import org.apache.http.HttpStatus;
  */
 public class OSSObjectOperation extends OSSOperation {
 
-    final static int UPLOAD_BLOCK_SIZE = 512 * 1024 * 1024;
+    final static int UPLOAD_BLOCK_SIZE = 4 * 1024 * 1024;
 
     public OSSObjectOperation(ServiceClient client, CredentialsProvider credsProvider) {
         super(client, credsProvider);
