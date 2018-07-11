@@ -117,7 +117,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode; 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.aliyun.oss.common.utils.LogUtils;
 
 import org.jdom.Document;
 import org.jdom.Element;
@@ -616,7 +617,9 @@ public final class ResponseParsers {
         public ObjectListing parse(ResponseMessage response) throws ResponseParseException {
             try {
                 ObjectListing result = parseQiniuListObjects(response.getContent(), response.getBucket());
-                result.setRequestId(response.getRequestId());
+                if (result != null) {
+                    result.setRequestId(response.getRequestId());
+                }
                 return result;
             } finally {
                 safeCloseResponse(response);
@@ -1103,11 +1106,16 @@ public final class ResponseParsers {
             BufferedReader br = new BufferedReader(new InputStreamReader(responseBody));
             while ((line = br.readLine()) != null) {
                 JsonNode rootNode = mapper.readTree(line);
+                if (!rootNode.path("error").asText().isEmpty()) {
+                    LogUtils.getLog().info("bucketname:" + bucket +
+                        ", listObject error: " + rootNode.path("error").asText());
+                    return null;
+                }
                 marker = rootNode.path("marker").asText();
                 if (!rootNode.path("dir").asText().isEmpty()) 
                     commonPrefixes.add(rootNode.path("dir").asText());
                 if (!rootNode.path("item").isNull())
-                    items.add(mapper.readValue(rootNode.path("item").toString(), QiniuObjectMetadata.class));
+                    items.add(mapper.treeToValue(rootNode.path("item"), QiniuObjectMetadata.class));
             }
             marker = (marker != null && !marker.equals("null")) ? marker : "";
             ObjectListing objectListing = new ObjectListing();
