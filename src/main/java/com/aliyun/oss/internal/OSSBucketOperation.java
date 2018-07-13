@@ -425,11 +425,14 @@ public class OSSBucketOperation extends OSSOperation {
             assertParameterNotNull(listObjectsRequest, "listObjectsRequest");
             String bucketName = listObjectsRequest.getBucketName();
             String prefix = listObjectsRequest.getPrefix();
-            // set first marker
-            listObjectsRequest.setMarker(MarkerCache.getMarker(bucketName + prefix));
 
             if (prefix == null) {
                 prefix = "";
+            }
+
+            // set first marker
+            if (MarkerCache.containsKey(bucketName + prefix)) {
+                listObjectsRequest.setMarker(MarkerCache.getMarker(bucketName + prefix));
             }
 
             assertParameterNotNull(bucketName, "bucketName");
@@ -450,11 +453,14 @@ public class OSSBucketOperation extends OSSOperation {
             ObjectListing result = doQiniuOperation(request, listQiniuObjectsReponseParser, getEndpoint(), bucketName, prefix, true, null, null);
 
             listObjectsRequest.incTries();
-            listObjectsRequest.setMarker(result.getMarker());
-            //cache marker
-            MarkerCache.setMarker(bucketName + prefix, result.getMarker());
-            LogUtils.getLog().debug("prefix:" + bucketName + prefix + ", marker:" + MarkerCache.getMarker(bucketName + prefix));
-            if (listObjectsRequest.getMarker().isEmpty() || (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES)) {
+            if (result != null) {
+                listObjectsRequest.setMarker(result.getMarker());
+                //cache marker
+                MarkerCache.setMarker(bucketName + prefix, result.getMarker());
+                LogUtils.getLog().debug("prefix:" + bucketName + prefix + ", marker:" +
+                    MarkerCache.getMarker(bucketName + prefix));
+            }
+            if (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES) {
                 result.setTruncated(false); // stop here
             }
 
