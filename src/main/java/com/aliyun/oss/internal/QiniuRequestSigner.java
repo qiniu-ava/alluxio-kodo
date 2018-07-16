@@ -107,7 +107,8 @@ public class QiniuRequestSigner implements RequestSigner {
         if (accessKeyId.length() > 0 && secretAccessKey.length() > 0) {
             Auth auth = Auth.create(this.creds.getAccessKeyId(), this.creds.getSecretAccessKey());
             try {
-                URL originURL = new URL("http://" + this.endPoint.getHost() + "/" + this.key);
+                URL originURL = new URL("http://" + this.endPoint.getHost() + "/" +
+                    URLEncoder.encode(this.key, "UTF-8").replaceAll("\\+", "%20"));
                 String privateUrl = auth.privateDownloadUrl(originURL.toString());
                 URL url = new URL(privateUrl);
                 url = new URL("http", QiniuRequestSigner.DEFAULT_IO_DOMAIN, url.getFile());
@@ -127,7 +128,7 @@ public class QiniuRequestSigner implements RequestSigner {
                 LogUtils.getLog().warn("load file from " + this.key + " failed, error: " + err.getMessage() + ", " + err.toString());
             } catch (URISyntaxException err) {
                 LogUtils.getLog().warn("load file from " + this.key + " failed, error: " + err.getMessage() + ", " + err.toString());
-            }
+            } catch (UnsupportedEncodingException err) {}
         }
     }
 
