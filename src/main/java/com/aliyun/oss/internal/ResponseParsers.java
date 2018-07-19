@@ -1101,8 +1101,7 @@ public final class ResponseParsers {
             // get info from responseBody
             String line;
             String marker = "";
-            List<String> commonPrefixes = new ArrayList<String>();
-            List<QiniuObjectMetadata> items = new ArrayList<QiniuObjectMetadata>();
+            ObjectListing objectListing = new ObjectListing();
             BufferedReader br = new BufferedReader(new InputStreamReader(responseBody));
             while ((line = br.readLine()) != null) {
                 JsonNode rootNode = mapper.readTree(line);
@@ -1112,25 +1111,19 @@ public final class ResponseParsers {
                     return null;
                 }
                 marker = rootNode.path("marker").asText();
-                if (!rootNode.path("dir").asText().isEmpty()) 
-                    commonPrefixes.add(rootNode.path("dir").asText());
-                if (!rootNode.path("item").isNull())
-                    items.add(mapper.treeToValue(rootNode.path("item"), QiniuObjectMetadata.class));
+                if (!rootNode.path("dir").asText().isEmpty())
+                    objectListing.addCommonPrefix(rootNode.path("dir").asText());
+                if (!rootNode.path("item").isNull()) {
+                    JsonNode item = rootNode.path("item");
+                    OSSObjectSummary objectSummary = new OSSObjectSummary();
+                    objectSummary.setKey(item.path("key").asText());
+                    objectSummary.setSize(item.path("fsize").asLong());
+                    objectSummary.setLastModified(new Date(item.path("putTime").asLong()));
+                    objectSummary.setETag(item.path("hash").asText());
+                    objectListing.addObjectSummary(objectSummary);
+                }
             }
             marker = (marker != null && !marker.equals("null")) ? marker : "";
-            ObjectListing objectListing = new ObjectListing();
-            if (commonPrefixes != null) {
-                for (String prefix: commonPrefixes) {
-                    objectListing.addCommonPrefix(prefix);
-                }
-            }
-            if (items != null) {
-                for (QiniuObjectMetadata item: items) {
-                    OSSObjectSummary sm = item.toObjectSummary();
-                    sm.setBucketName(bucket);
-                    objectListing.addObjectSummary(sm);
-                }
-            }
             objectListing.setBucketName(bucket);
             objectListing.setTruncated(!marker.equals(""));
             objectListing.setEncodingType("");

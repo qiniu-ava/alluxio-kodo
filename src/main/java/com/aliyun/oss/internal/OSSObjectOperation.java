@@ -144,7 +144,7 @@ import org.apache.http.HttpStatus;
  */
 public class OSSObjectOperation extends OSSOperation {
 
-    final static int UPLOAD_BLOCK_SIZE = 4 * 1024 * 1024;
+    final static int UPLOAD_BLOCK_SIZE = 512 * 1024 * 1024;
 
     public OSSObjectOperation(ServiceClient client, CredentialsProvider credsProvider) {
         super(client, credsProvider);
