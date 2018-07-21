@@ -460,9 +460,6 @@ public class OSSBucketOperation extends OSSOperation {
                 LogUtils.getLog().debug("prefix:" + bucketName + prefix + ", marker:" +
                     MarkerCache.getMarker(bucketName + prefix));
             }
-            if (listObjectsRequest.getTries() == ListObjectsRequest.MAX_TRIES) {
-                result.setTruncated(false); // stop here
-            }
 
             return result;
         } catch (Exception e) {
