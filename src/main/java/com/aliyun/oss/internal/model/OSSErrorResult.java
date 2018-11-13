@@ -30,6 +30,9 @@ public class OSSErrorResult {
     @XmlElement(name = "Message")
     public String Message;
 
+    @XmlElement(name = "StatusCode")
+    public int StatusCode;
+
     @XmlElement(name = "RequestId")
     public String RequestId;
 

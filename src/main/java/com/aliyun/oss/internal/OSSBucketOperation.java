@@ -294,11 +294,11 @@ public class OSSBucketOperation extends OSSOperation {
         reponseHandlers.add(new ResponseHandler() {
             @Override
             public void handle(ResponseMessage response) throws ServiceException, ClientException {
-                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND) {
+                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND ) {
                     safeCloseResponse(response);
-                    throw ExceptionFactory.createOSSException(
-                            response.getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_BUCKET,
-                            OSS_RESOURCE_MANAGER.getString("NoSuchBucket"));
+                    throw ExceptionFactory.createOSSException(                       
+                            response.getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_BUCKET,
+                            OSS_RESOURCE_MANAGER.getString("NoSuchBucket"), response.getStatusCode());
                 }
             }
         });

@@ -82,7 +82,7 @@ public abstract class ServiceClient {
 
     private ResponseMessage sendRequestImpl(RequestMessage request, ExecutionContext context)
             throws ClientException, ServiceException {
-
+        
         RetryStrategy retryStrategy = context.getRetryStrategy() != null ? context.getRetryStrategy()
                 : this.getDefaultRetryStrategy();
 
@@ -167,14 +167,16 @@ public abstract class ServiceClient {
             } catch (Exception ex) {
                 logException("[Unknown]Unable to execute HTTP request: ", ex,
                         request.getOriginalRequest().isLogEnabled());
+                       
+                closeResponseSilently(response);               
+                if (!shouldRetry(ex, request, response, retries, retryStrategy)){
 
-                closeResponseSilently(response);
-
-                throw new ClientException(
-                        COMMON_RESOURCE_MANAGER.getFormattedString("ConnectionError", ex.getMessage()), ex);
+                    throw new ClientException(
+                        COMMON_RESOURCE_MANAGER.getFormattedString("ConnectionError", ex.getMessage()), ex);                        
+                }               
             } finally {
                 retries++;
-            }
+            }        
         }
     }
 

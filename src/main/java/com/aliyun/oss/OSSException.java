@@ -42,24 +42,24 @@ public class OSSException extends ServiceException {
         super(errorMessage, cause);
     }
 
-    public OSSException(String errorMessage, String errorCode, String requestId, String hostId, String header,
+    public OSSException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId, String header,
             String resourceType, String method) {
-        this(errorMessage, errorCode, requestId, hostId, header, resourceType, method, null, null);
+        this(errorMessage, statusCode, errorCode, requestId, hostId, header, resourceType, method, null, null);
     }
 
-    public OSSException(String errorMessage, String errorCode, String requestId, String hostId, String header,
+    public OSSException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId, String header,
             String resourceType, String method, Throwable cause) {
-        this(errorMessage, errorCode, requestId, hostId, header, resourceType, method, null, cause);
+        this(errorMessage, statusCode, errorCode, requestId, hostId, header, resourceType, method, null, cause);
     }
 
-    public OSSException(String errorMessage, String errorCode, String requestId, String hostId, String header,
+    public OSSException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId, String header,
             String resourceType, String method, String rawResponseError) {
-        this(errorMessage, errorCode, requestId, hostId, header, resourceType, method, rawResponseError, null);
+        this(errorMessage, statusCode, errorCode, requestId, hostId, header, resourceType, method, rawResponseError, null);
     }
 
-    public OSSException(String errorMessage, String errorCode, String requestId, String hostId, String header,
+    public OSSException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId, String header,
             String resourceType, String method, String rawResponseError, Throwable cause) {
-        super(errorMessage, errorCode, requestId, hostId, rawResponseError, cause);
+        super(errorMessage, statusCode, errorCode, requestId, hostId, rawResponseError, cause);
         this.resourceType = resourceType;
         this.header = header;
         this.method = method;

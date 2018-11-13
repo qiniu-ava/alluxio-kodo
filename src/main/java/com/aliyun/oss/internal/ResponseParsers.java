@@ -807,7 +807,7 @@ public final class ResponseParsers {
 
         @Override
         public ObjectMetadata parse(ResponseMessage response) throws ResponseParseException {
-            try {
+            try {            
                 return parseQiniuObjectMetadata(response.getContent());
             } finally {
                 safeCloseResponse(response);
@@ -1471,7 +1471,7 @@ public final class ResponseParsers {
                     objectMeta.setSize(value);
                 } else if (key.equals(OSSHeaders.ETAG)) {
                     objectMeta.setETag(trimQuotes(headers.get(key)));
-                } else if (key.equals(OSSHeaders.OSS_HEADER_REQUEST_ID)) {
+                } else if (key.equals(OSSHeaders.QINIU_HEADER_REQUEST_ID)) {
                     objectMeta.setRequestId(headers.get(key));
                 }
             }

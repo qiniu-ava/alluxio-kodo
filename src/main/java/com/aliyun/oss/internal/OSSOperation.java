@@ -93,7 +93,7 @@ public abstract class OSSOperation {
             throws OSSException, ClientException {
         ResponseMessage response = null;
         try {
-            response = client.sendRequest(request, context);
+            response = client.sendRequest(request, context);     
             return response;
         } catch (ServiceException e) {
             assert (e instanceof OSSException);
@@ -160,8 +160,8 @@ public abstract class OSSOperation {
         try {
             return parser.parse(response);
         } catch (ResponseParseException rpe) {
-            OSSException oe = ExceptionFactory.createInvalidResponseException(response.getRequestId(), rpe.getMessage(),
-                    rpe);
+            OSSException oe = ExceptionFactory.createInvalidResponseException(response.getRequestId(), response.getStatusCode(),
+             rpe.getMessage(), rpe);
             logException("Unable to parse response error: ", rpe);
             throw oe;
         }
@@ -209,8 +209,8 @@ public abstract class OSSOperation {
         try {
             return parser.parse(response);
         } catch (ResponseParseException rpe) {
-            OSSException oe = ExceptionFactory.createInvalidResponseException(response.getRequestId(), rpe.getMessage(),
-                    rpe);
+            OSSException oe = ExceptionFactory.createInvalidResponseException(response.getRequestId(), response.getStatusCode(),
+             rpe.getMessage(), rpe);
             logException("Unable to parse response error: ", rpe);
             throw oe;
         }

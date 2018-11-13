@@ -41,7 +41,7 @@ public class OSSCallbackErrorResponseHandler implements ResponseHandler {
                 OSSErrorResult errorResult = (OSSErrorResult) parser.parse(response);
                 throw ExceptionFactory.createOSSException(errorResult, response.getErrorResponseAsString());
             } catch (ResponseParseException e) {
-                throw ExceptionFactory.createInvalidResponseException(response.getRequestId(),
+                throw ExceptionFactory.createInvalidResponseException(response.getRequestId(), response.getStatusCode(), 
                         response.getErrorResponseAsString(), e);
             } finally {
                 safeCloseResponse(response);

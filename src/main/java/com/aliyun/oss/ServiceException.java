@@ -57,8 +57,8 @@ public class ServiceException extends RuntimeException {
     private String errorCode;
     private String requestId;
     private String hostId;
-
     private String rawResponseError;
+    private int statusCode;
 
     /**
      * Creates a default instance.
@@ -112,9 +112,11 @@ public class ServiceException extends RuntimeException {
      *            Request Id.
      * @param hostId
      *            Host Id.
+     * @param statusCode
+     *            status code
      */
-    public ServiceException(String errorMessage, String errorCode, String requestId, String hostId) {
-        this(errorMessage, errorCode, requestId, hostId, null);
+    public ServiceException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId) {
+        this(errorMessage, statusCode, errorCode, requestId, hostId, null);
     }
 
     /**
@@ -131,8 +133,8 @@ public class ServiceException extends RuntimeException {
      * @param cause
      *            A {@link Throwable} instance indicates a specific exception.
      */
-    public ServiceException(String errorMessage, String errorCode, String requestId, String hostId, Throwable cause) {
-        this(errorMessage, errorCode, requestId, hostId, null, cause);
+    public ServiceException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId, Throwable cause) {
+        this(errorMessage, statusCode, errorCode, requestId, hostId, null, cause);
     }
 
     /**
@@ -141,6 +143,8 @@ public class ServiceException extends RuntimeException {
      * 
      * @param errorMessage
      *            Error message.
+     * @param statusCode
+     *            Status code.
      * @param errorCode
      *            Error code.
      * @param requestId
@@ -152,9 +156,10 @@ public class ServiceException extends RuntimeException {
      * @param cause
      *            A {@link Throwable} instance indicates a specific exception.
      */
-    public ServiceException(String errorMessage, String errorCode, String requestId, String hostId,
+    public ServiceException(String errorMessage, int statusCode, String errorCode, String requestId, String hostId,
             String rawResponseError, Throwable cause) {
         this(errorMessage, cause);
+        this.statusCode = statusCode;
         this.errorCode = errorCode;
         this.requestId = requestId;
         this.hostId = hostId;
@@ -168,6 +173,13 @@ public class ServiceException extends RuntimeException {
      */
     public String getErrorMessage() {
         return errorMessage;
+    }
+    /**
+     * Gets status code.
+     * @return Status code.
+     */
+    public int getStatusCode() {
+        return statusCode;
     }
 
     /**
@@ -225,7 +237,7 @@ public class ServiceException extends RuntimeException {
 
     @Override
     public String getMessage() {
-        return getErrorMessage() + "\n[ErrorCode]: " + getErrorCode() + "\n[RequestId]: " + getRequestId()
+        return getErrorMessage() +"\n[StatusCode]: " + getStatusCode() + "\n[ErrorCode]: " + getErrorCode() + "\n[RequestId]: " + getRequestId()
                 + "\n[HostId]: " + getHostId() + formatRawResponseError();
     }
 }

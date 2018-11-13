@@ -53,12 +53,14 @@ public class OSSErrorResponseHandler implements ResponseHandler {
              * Found, 304 Not Modified, 412 Precondition Failed especially.
              */
             if (statusCode == HttpStatus.SC_NOT_FOUND) {
-                throw ExceptionFactory.createOSSException(requestId, OSSErrorCode.NO_SUCH_KEY, "Not Found");
+                throw ExceptionFactory.createOSSException(requestId, OSSErrorCode.NO_SUCH_KEY, "Not Found",
+                 response.getStatusCode());
             } else if (statusCode == HttpStatus.SC_NOT_MODIFIED) {
-                throw ExceptionFactory.createOSSException(requestId, OSSErrorCode.NOT_MODIFIED, "Not Modified");
+                throw ExceptionFactory.createOSSException(requestId, OSSErrorCode.NOT_MODIFIED,
+                 "Not Modified", response.getStatusCode());
             } else if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
                 throw ExceptionFactory.createOSSException(requestId, OSSErrorCode.PRECONDITION_FAILED,
-                        "Precondition Failed");
+                        "Precondition Failed", response.getStatusCode());
             } else {
                 throw ExceptionFactory.createUnknownOSSException(requestId, statusCode);
             }
@@ -69,7 +71,7 @@ public class OSSErrorResponseHandler implements ResponseHandler {
             OSSErrorResult errorResult = (OSSErrorResult) parser.parse(response);
             throw ExceptionFactory.createOSSException(errorResult, response.getErrorResponseAsString());
         } catch (ResponseParseException e) {
-            throw ExceptionFactory.createInvalidResponseException(requestId, response.getErrorResponseAsString(), e);
+            throw ExceptionFactory.createInvalidResponseException(requestId, response.getStatusCode(), response.getErrorResponseAsString(), e);
         } finally {
             safeCloseResponse(response);
         }

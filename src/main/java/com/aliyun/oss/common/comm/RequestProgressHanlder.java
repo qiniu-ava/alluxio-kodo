@@ -37,7 +37,7 @@ public class RequestProgressHanlder implements RequestHandler {
 
     @Override
     public void handle(RequestMessage request) throws OSSException, ClientException {
-
+        
         final WebServiceRequest originalRequest = request.getOriginalRequest();
         final ProgressListener listener = originalRequest.getProgressListener();
         Map<String, String> headers = request.getHeaders();
