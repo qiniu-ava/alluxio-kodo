@@ -71,25 +71,21 @@ public class ExceptionFactory {
         return new ClientException(ex.getMessage(), errorCode, requestId, ex);
     }
 
-    public static OSSException createInvalidResponseException(String requestId, Throwable cause) {
-        return createInvalidResponseException(requestId,
-                COMMON_RESOURCE_MANAGER.getFormattedString("FailedToParseResponse", cause.getMessage()));
-    }
 
-    public static OSSException createInvalidResponseException(String requestId, String rawResponseError,
-            Throwable cause) {
-        return createInvalidResponseException(requestId,
+    public static OSSException createInvalidResponseException(String requestId, int statusCode, String rawResponseError,
+            Throwable cause) { 
+        return createInvalidResponseException(requestId, statusCode, 
                 COMMON_RESOURCE_MANAGER.getFormattedString("FailedToParseResponse", cause.getMessage()),
                 rawResponseError);
     }
 
-    public static OSSException createInvalidResponseException(String requestId, String message) {
-        return createOSSException(requestId, OSSErrorCode.INVALID_RESPONSE, message);
+    public static OSSException createInvalidResponseException(String requestId, String message, int statusCode) {
+        return createOSSException(requestId, OSSErrorCode.INVALID_RESPONSE, message, statusCode);
     }
 
-    public static OSSException createInvalidResponseException(String requestId, String message,
+    public static OSSException createInvalidResponseException(String requestId, int statusCode, String message,
             String rawResponseError) {
-        return createOSSException(requestId, OSSErrorCode.INVALID_RESPONSE, message, rawResponseError);
+        return createOSSException(requestId, OSSErrorCode.INVALID_RESPONSE, message, rawResponseError, statusCode);
     }
 
     public static OSSException createOSSException(OSSErrorResult errorResult) {
@@ -97,21 +93,21 @@ public class ExceptionFactory {
     }
 
     public static OSSException createOSSException(OSSErrorResult errorResult, String rawResponseError) {
-        return new OSSException(errorResult.Message, errorResult.Code, errorResult.RequestId, errorResult.HostId,
+        return new OSSException(errorResult.Message, errorResult.StatusCode, errorResult.Code, errorResult.RequestId, errorResult.HostId,
                 errorResult.Header, errorResult.ResourceType, errorResult.Method, rawResponseError);
     }
 
-    public static OSSException createOSSException(String requestId, String errorCode, String message) {
-        return new OSSException(message, errorCode, requestId, null, null, null, null);
+    public static OSSException createOSSException(String requestId, String errorCode, String message, int statusCode) {
+        return new OSSException(message, statusCode, errorCode, requestId, null, null, null, null);
     }
 
     public static OSSException createOSSException(String requestId, String errorCode, String message,
-            String rawResponseError) {
-        return new OSSException(message, errorCode, requestId, null, null, null, null, rawResponseError);
+            String rawResponseError, int statusCode) {
+        return new OSSException(message, statusCode, errorCode, requestId, null, null, null, null, rawResponseError);
     }
 
     public static OSSException createUnknownOSSException(String requestId, int statusCode) {
         String message = "No body in response, http status code " + Integer.toString(statusCode);
-        return new OSSException(message, ClientErrorCode.UNKNOWN, requestId, null, null, null, null);
+        return new OSSException(message, statusCode, ClientErrorCode.UNKNOWN, requestId, null, null, null, null);
     }
 }

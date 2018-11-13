@@ -340,7 +340,7 @@ public class ObjectMetadata {
      * @return RequestId.
      */
     public String getRequestId() {
-        return (String) metadata.get(OSSHeaders.OSS_HEADER_REQUEST_ID);
+       return (String) metadata.get(OSSHeaders.QINIU_HEADER_REQUEST_ID);
     }
 
     /**

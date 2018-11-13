@@ -35,7 +35,7 @@ public class BucketMetadataTest extends TestBase {
         try {
             BucketMetadata meta = ossClient.getBucketMetadata(bucketName);
             Assert.assertEquals(meta.getBucketRegion(), TestConfig.OSS_TEST_REGION);
-            Assert.assertEquals(meta.getHttpMetadata().get(OSSHeaders.OSS_HEADER_REQUEST_ID).length(),
+           Assert.assertEquals(meta.getHttpMetadata().get(OSSHeaders.QINIU_HEADER_REQUEST_ID).length(),
                     "59F2AC3B349A25FA4C44BF8A".length());
         } catch (Exception e) {
         	e.printStackTrace();

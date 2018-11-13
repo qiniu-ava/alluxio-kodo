@@ -588,7 +588,7 @@ public class OSSObjectOperation extends OSSOperation {
     }
 
     public ObjectMetadata getQiniuObjectMetadata(GenericRequest genericRequest) throws OSSException, ClientException {
-        LogUtils.getLog().debug("trying to get qiniu object metadata, " + genericRequest.toString());
+        LogUtils.getLog().debug("trying to get qiniu object metadata, " + genericRequest.toString());      
         assertParameterNotNull(genericRequest, "genericRequest");
         String bucketName = genericRequest.getBucketName();
         String key = genericRequest.getKey();
@@ -610,11 +610,24 @@ public class OSSObjectOperation extends OSSOperation {
         reponseHandlers.add(new ResponseHandler() {
             @Override
             public void handle(ResponseMessage response) throws ServiceException, ClientException {
-                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND) {
-                    safeCloseResponse(response);
-                    throw ExceptionFactory.createOSSException(
-                            response.getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_KEY,
-                            OSS_RESOURCE_MANAGER.getString("NoSuchKey"));
+                if(!response.isSuccessful()){                                                     
+                    if(response.getStatusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR || response.getStatusCode() == HttpStatus.SC_BAD_GATEWAY 
+                        || response.getStatusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE || response.getStatusCode() == HttpStatus.SC_GATEWAY_TIMEOUT) {  
+                        safeCloseResponse(response);
+                        throw ExceptionFactory.createOSSException(
+                                response.getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID), response.getErrorResponseAsString(),
+                                " Server Exception Happen ", response.getStatusCode());
+                    }                   
+                    else if(response.getStatusCode() == HttpStatus.SC_NOT_FOUND){
+                        safeCloseResponse(response);
+                        throw ExceptionFactory.createOSSException(
+                            response.getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_KEY,
+                            OSS_RESOURCE_MANAGER.getString("NoSuchKey"), response.getStatusCode());
+                    }
+                    else if(response.getStatusCode() != 612){
+                        LogUtils.getLog().error("\n[StatusCode]: " + response.getStatusCode()+"\n[ErrorCode]: " + 
+                        response.getErrorResponseAsString()+"\n[RuequestId]: "+response.getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID));                        
+                    }                                        
                 }
             }
         });
@@ -642,14 +655,14 @@ public class OSSObjectOperation extends OSSOperation {
 
             @Override
             public void handle(ResponseMessage response) throws ServiceException, ClientException {
-                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND) {
+                if (response.getStatusCode() == HttpStatus.SC_NOT_FOUND||response.getStatusCode() == 612) {
                     safeCloseResponse(response);
-                    throw ExceptionFactory.createOSSException(
-                            response.getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_KEY,
-                            OSS_RESOURCE_MANAGER.getString("NoSuchKey"));
-                }
+                    throw ExceptionFactory.createOSSException(                           
+                            response.getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID), OSSErrorCode.NO_SUCH_KEY,
+                            OSS_RESOURCE_MANAGER.getString("NoSuchKey"), response.getStatusCode());
+                }                
             }
-
+            
         });
 
         return doOperation(request, getObjectMetadataResponseParser, bucketName, key, true, null, reponseHandlers);

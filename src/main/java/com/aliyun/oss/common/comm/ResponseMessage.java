@@ -61,7 +61,7 @@ public class ResponseMessage extends HttpMesssage {
     }
 
     public String getRequestId() {
-        return getHeaders().get(OSSHeaders.OSS_HEADER_REQUEST_ID);
+        return getHeaders().get(OSSHeaders.QINIU_HEADER_REQUEST_ID);
     }
 
     public void setBucket(String bucket) {

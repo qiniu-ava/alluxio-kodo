@@ -66,6 +66,7 @@ import com.aliyun.oss.common.utils.ExceptionFactory;
 import com.aliyun.oss.common.utils.HttpHeaders;
 import com.aliyun.oss.common.utils.HttpUtil;
 import com.aliyun.oss.common.utils.IOUtils;
+import com.aliyun.oss.common.utils.LogUtils;
 
 /**
  * Default implementation of {@link ServiceClient}.
@@ -126,7 +127,6 @@ public class DefaultServiceClient extends ServiceClient {
             httpRequest.abort();
             throw ExceptionFactory.createNetworkException(ex);
         }
-
         return buildResponse(request, httpResponse);
     }
 
@@ -173,7 +173,7 @@ public class DefaultServiceClient extends ServiceClient {
     private static class DefaultRetryStrategy extends RetryStrategy {
 
         @Override
-        public boolean shouldRetry(Exception ex, RequestMessage request, ResponseMessage response, int retries) {
+        public boolean shouldRetry(Exception ex, RequestMessage request, ResponseMessage response, int retries) {           
             if (ex instanceof ClientException) {
                 String errorCode = ((ClientException) ex).getErrorCode();
                 if (errorCode.equals(ClientErrorCode.CONNECTION_TIMEOUT)
@@ -186,7 +186,7 @@ public class DefaultServiceClient extends ServiceClient {
 
                 // Don't retry when request input stream is non-repeatable
                 if (errorCode.equals(ClientErrorCode.NONREPEATABLE_REQUEST)) {
-                    return false;
+                    return false;                    
                 }
             }
 
@@ -201,11 +201,13 @@ public class DefaultServiceClient extends ServiceClient {
             if (response != null) {
                 int statusCode = response.getStatusCode();
                 if (statusCode == HttpStatus.SC_INTERNAL_SERVER_ERROR
-                        || statusCode == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                        || statusCode == HttpStatus.SC_SERVICE_UNAVAILABLE
+                        || statusCode == HttpStatus.SC_BAD_GATEWAY
+                        || statusCode == HttpStatus.SC_GATEWAY_TIMEOUT) {
                     return true;
                 }
             }
-
+            
             return false;
         }
     }
